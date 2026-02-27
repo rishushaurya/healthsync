@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 
 // Unified API for shared data stored in Upstash Redis
-// Supports: GET (read), POST (write), PATCH (update item in array), DELETE (remove)
+// IMPORTANT: @upstash/redis auto-serializes/deserializes JSON,
+// so we do NOT call JSON.stringify/JSON.parse ourselves.
 
 export async function GET(request: NextRequest) {
     try {
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
 
         const redis = getRedis();
         const data = await redis.get(key);
+        // @upstash/redis already parses JSON — return as-is
         return NextResponse.json({ data: data ?? null });
     } catch (error) {
         console.error('Store GET error:', error);
@@ -25,7 +27,8 @@ export async function POST(request: NextRequest) {
         if (!key) return NextResponse.json({ error: 'Missing key' }, { status: 400 });
 
         const redis = getRedis();
-        await redis.set(key, JSON.stringify(value));
+        // @upstash/redis auto-stringifies, so pass value directly
+        await redis.set(key, value);
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Store POST error:', error);
@@ -40,18 +43,19 @@ export async function PATCH(request: NextRequest) {
 
         const redis = getRedis();
         const raw = await redis.get(key);
+
+        // @upstash/redis auto-parses, so raw is already an array or null
         let arr: unknown[] = [];
-        if (typeof raw === 'string') {
-            arr = JSON.parse(raw);
-        } else if (Array.isArray(raw)) {
+        if (Array.isArray(raw)) {
             arr = raw;
+        } else if (typeof raw === 'string') {
+            // Fallback: if somehow stored as a string, try parsing
+            try { arr = JSON.parse(raw); } catch { arr = []; }
         }
 
         if (action === 'push') {
-            // Add item to array
             arr.push(item);
         } else if (action === 'update') {
-            // Update matching items
             arr = arr.map((entry: unknown) => {
                 const obj = entry as Record<string, unknown>;
                 if (obj[matchField] === matchValue) {
@@ -60,14 +64,14 @@ export async function PATCH(request: NextRequest) {
                 return obj;
             });
         } else if (action === 'remove') {
-            // Remove matching items
             arr = arr.filter((entry: unknown) => {
                 const obj = entry as Record<string, unknown>;
                 return obj[matchField] !== matchValue;
             });
         }
 
-        await redis.set(key, JSON.stringify(arr));
+        // @upstash/redis auto-stringifies — pass array directly
+        await redis.set(key, arr);
         return NextResponse.json({ success: true, data: arr });
     } catch (error) {
         console.error('Store PATCH error:', error);

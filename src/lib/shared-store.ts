@@ -10,10 +10,7 @@ export async function cloudGet<T>(key: string): Promise<T | null> {
         const res = await fetch(`${API}?key=${encodeURIComponent(key)}`);
         const json = await res.json();
         if (json.data === null || json.data === undefined) return null;
-        // Redis might return a string or already-parsed object
-        if (typeof json.data === 'string') {
-            try { return JSON.parse(json.data) as T; } catch { return json.data as T; }
-        }
+        // The API route + @upstash/redis already returns parsed JSON
         return json.data as T;
     } catch (e) {
         console.error('cloudGet error:', e);
