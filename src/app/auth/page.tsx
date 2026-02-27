@@ -28,7 +28,7 @@ export default function AuthPage() {
                 setLoading(false);
                 return;
             }
-            const result = loginDoctor(form.email, form.password);
+            const result = loginDoctor(form.email.trim(), form.password.trim());
             if (!result.success) {
                 setError(result.error || 'Login failed');
                 setLoading(false);
