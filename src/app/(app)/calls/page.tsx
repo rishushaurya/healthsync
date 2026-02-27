@@ -9,9 +9,11 @@ import {
 import { getCurrentUser, generateId, type CallLog } from '@/lib/store';
 import { cloudGetCallLogs, cloudGetActiveCall, cloudUpdateCallLog, cloudAddNotification } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
+import { useWebRTC } from '@/hooks/useWebRTC';
 
 export default function UserCallsPage() {
     const { t } = useLanguage();
+    const webrtc = useWebRTC();
     const [userId, setUserId] = useState('');
     const [callHistory, setCallHistory] = useState<CallLog[]>([]);
     const [activeCall, setActiveCall] = useState<CallLog | null>(null);
@@ -61,6 +63,12 @@ export default function UserCallsPage() {
         await cloudUpdateCallLog(activeCall.id, { status: 'ongoing' });
         setActiveCall(prev => prev ? { ...prev, status: 'ongoing' } : null);
         setCallDuration(0);
+        // Start WebRTC as callee — create SDP answer from doctor's offer
+        try {
+            await webrtc.startAsCalleeAsync(activeCall.id);
+        } catch (e) {
+            console.error('WebRTC callee setup failed:', e);
+        }
         await cloudAddNotification({
             id: generateId(), userId, type: 'call',
             title: `${activeCall.type === 'video' ? 'Video' : 'Audio'} Call Started`,
@@ -71,6 +79,7 @@ export default function UserCallsPage() {
 
     const rejectCall = async () => {
         if (!activeCall) return;
+        webrtc.stopCall();
         await cloudUpdateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
         await cloudAddNotification({
             id: generateId(), userId, type: 'call',
@@ -86,6 +95,7 @@ export default function UserCallsPage() {
     const endCall = async () => {
         const call = activeCallRef.current;
         if (!call) return;
+        webrtc.stopCall();
         await cloudUpdateCallLog(call.id, { status: 'completed', endTime: new Date().toISOString(), duration: callDurationRef.current });
         await cloudAddNotification({
             id: generateId(), userId: userIdRef.current, type: 'call',
@@ -191,7 +201,7 @@ export default function UserCallsPage() {
                         <h2 style={{ fontSize: 24, fontWeight: 700, color: 'white' }}>{activeCall.doctorName}</h2>
                         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{formatDuration(callDuration)}</p>
                         <div style={{ display: 'flex', gap: 16, marginTop: 20, position: 'relative', zIndex: 10000 }}>
-                            <button onClick={() => setIsMuted(!isMuted)} style={{
+                            <button onClick={() => { const newVal = !isMuted; setIsMuted(newVal); webrtc.toggleMute(newVal); }} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
                                 background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',

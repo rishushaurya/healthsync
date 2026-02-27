@@ -16,9 +16,11 @@ import {
     cloudUpdateCallLog, cloudGetActiveCall, cloudAddPrescription,
     cloudAddNotification, cloudGetPatientData, cloudGetAllUsers
 } from '@/lib/shared-store';
+import { useWebRTC } from '@/hooks/useWebRTC';
 
 export default function CallsPage() {
     const searchParams = useSearchParams();
+    const webrtc = useWebRTC();
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
     const [callHistory, setCallHistory] = useState<CallLog[]>([]);
     const [patients, setPatients] = useState<{ userId: string; name: string }[]>([]);
@@ -86,6 +88,7 @@ export default function CallsPage() {
                     if (updatedCall.status === 'ongoing') {
                         setActiveCall({ ...updatedCall });
                     } else if (updatedCall.status === 'missed' || updatedCall.status === 'completed') {
+                        webrtc.stopCall();
                         setLastEndedCall(call);
                         setLastCallDuration(callDurationRef.current);
                         setActiveCall(null);
@@ -102,6 +105,7 @@ export default function CallsPage() {
                 }
             } else if (!updatedCall && call.status === 'ringing') {
                 // User may have rejected (status changed to missed, no longer active)
+                webrtc.stopCall();
                 setLastEndedCall(call);
                 setActiveCall(null);
                 setCallDuration(0);
@@ -134,13 +138,20 @@ export default function CallsPage() {
         setActiveCall(call);
         setCallType(type);
         setCallDuration(0);
-        // NO auto-accept! The call stays in 'ringing' until the user accepts or rejects.
+        // Start WebRTC as the caller — create SDP offer and wait for callee answer
+        try {
+            await webrtc.startAsCallerAsync(call.id);
+        } catch (e) {
+            console.error('WebRTC caller setup failed:', e);
+        }
     };
 
     const endCall = async () => {
         const call = activeCallRef.current;
         if (!call) return;
         const duration = callDurationRef.current;
+        // Stop WebRTC connection
+        webrtc.stopCall();
         await cloudUpdateCallLog(call.id, {
             status: 'completed', endTime: new Date().toISOString(), duration,
         });
@@ -324,7 +335,7 @@ export default function CallsPage() {
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 16, marginTop: 20, position: 'relative', zIndex: 10000 }}>
-                            <button onClick={() => setIsMuted(!isMuted)} style={{
+                            <button onClick={() => { const newVal = !isMuted; setIsMuted(newVal); webrtc.toggleMute(newVal); }} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
                                 background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
