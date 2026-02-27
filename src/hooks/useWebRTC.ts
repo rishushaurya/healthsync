@@ -1,35 +1,32 @@
 // WebRTC hook for real-time audio AND video calls
-// Uses TURN relay servers for cross-network connectivity
+// Uses TURN relay servers fetched from /api/turn for cross-network connectivity
 // Signaling via Upstash Redis (polling-based)
 
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { cloudGet, cloudSet } from '@/lib/shared-store';
 
-// STUN + TURN servers for reliable cross-network connectivity
-// TURN relay is critical for mobile networks with symmetric NATs
-const ICE_SERVERS: RTCConfiguration = {
+// Fallback STUN-only config (used if /api/turn is unreachable)
+const FALLBACK_CONFIG: RTCConfiguration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        // Free TURN relay servers (OpenRelay by Metered)
-        {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject',
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject',
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject',
-        },
     ],
-    iceCandidatePoolSize: 10,
 };
+
+// Fetch fresh TURN credentials from our API
+async function getIceConfig(): Promise<RTCConfiguration> {
+    try {
+        const res = await fetch('/api/turn');
+        if (res.ok) {
+            const data = await res.json();
+            console.log('[WebRTC] Got', data.iceServers?.length, 'ICE servers from API');
+            return { iceServers: data.iceServers, iceCandidatePoolSize: 10 };
+        }
+    } catch (e) {
+        console.error('[WebRTC] Failed to fetch TURN credentials:', e);
+    }
+    return FALLBACK_CONFIG;
+}
 
 interface SignalData {
     offer?: { type: string; sdp: string };
@@ -191,8 +188,9 @@ export function useWebRTC() {
         localStreamRef.current = stream;
         setLocalStream(stream);
 
-        // 2. Create peer connection
-        const pc = new RTCPeerConnection(ICE_SERVERS);
+        // 2. Create peer connection with fresh TURN credentials
+        const iceConfig = await getIceConfig();
+        const pc = new RTCPeerConnection(iceConfig);
         pcRef.current = pc;
 
         // 3. Add local tracks
@@ -316,8 +314,9 @@ export function useWebRTC() {
         localStreamRef.current = stream;
         setLocalStream(stream);
 
-        // 3. Create peer connection
-        const pc = new RTCPeerConnection(ICE_SERVERS);
+        // 3. Create peer connection with fresh TURN credentials
+        const iceConfig = await getIceConfig();
+        const pc = new RTCPeerConnection(iceConfig);
         pcRef.current = pc;
 
         // 4. Add local tracks
