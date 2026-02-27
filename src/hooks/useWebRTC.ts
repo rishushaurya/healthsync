@@ -1,49 +1,56 @@
-// WebRTC hook for real-time audio AND video calls between doctor and patient
-// Signaling is done via Upstash Redis (polling-based)
+// WebRTC hook for real-time audio AND video calls
+// Uses TURN relay servers for cross-network connectivity
+// Signaling via Upstash Redis (polling-based)
 
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { cloudGet, cloudSet } from '@/lib/shared-store';
 
+// STUN + TURN servers for reliable cross-network connectivity
+// TURN relay is critical for mobile networks with symmetric NATs
 const ICE_SERVERS: RTCConfiguration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN relay servers (OpenRelay by Metered)
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
     ],
+    iceCandidatePoolSize: 10,
 };
 
 interface SignalData {
-    offer?: RTCSessionDescriptionInit;
-    answer?: RTCSessionDescriptionInit;
-    iceCandidates_caller?: RTCIceCandidateInit[];
-    iceCandidates_callee?: RTCIceCandidateInit[];
+    offer?: { type: string; sdp: string };
+    answer?: { type: string; sdp: string };
+    callerCandidates?: Array<{ candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }>;
+    calleeCandidates?: Array<{ candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }>;
 }
 
-const signalKey = (callId: string) => `hs_webrtc_signal_${callId}`;
+const signalKey = (callId: string) => `hs_rtc_${callId}`;
 
 async function getSignal(callId: string): Promise<SignalData | null> {
-    return cloudGet<SignalData>(signalKey(callId));
+    try {
+        return await cloudGet<SignalData>(signalKey(callId));
+    } catch {
+        return null;
+    }
 }
 
-async function setSignal(callId: string, data: SignalData): Promise<void> {
-    await cloudSet(signalKey(callId), data);
-}
-
-// Wait for ICE gathering to finish (or timeout after 4s)
-function waitForIceGathering(pc: RTCPeerConnection): Promise<void> {
-    return new Promise((resolve) => {
-        if (pc.iceGatheringState === 'complete') { resolve(); return; }
-        const onDone = () => {
-            if (pc.iceGatheringState === 'complete') {
-                pc.removeEventListener('icegatheringstatechange', onDone);
-                resolve();
-            }
-        };
-        pc.addEventListener('icegatheringstatechange', onDone);
-        setTimeout(resolve, 4000);
-    });
+async function updateSignal(callId: string, updates: Partial<SignalData>): Promise<void> {
+    const existing = await getSignal(callId) || {};
+    await cloudSet(signalKey(callId), { ...existing, ...updates });
 }
 
 export function useWebRTC() {
@@ -51,34 +58,44 @@ export function useWebRTC() {
     const localStreamRef = useRef<MediaStream | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isMountedRef = useRef(true);
+    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    // Exposed state for UI to bind video/audio elements
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [permissionError, setPermissionError] = useState<string | null>(null);
-    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    // Auto-play remote audio through speaker (works for both audio and video calls)
+    // Auto-play remote audio through device speaker
     useEffect(() => {
-        if (remoteStream) {
+        if (remoteStream && remoteStream.getAudioTracks().length > 0) {
             if (!remoteAudioRef.current) {
                 const audio = document.createElement('audio');
                 audio.autoplay = true;
                 audio.setAttribute('playsinline', '');
-                audio.style.display = 'none';
+                // Force speaker on mobile
+                (audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> })
+                    .setSinkId?.('default').catch(() => { });
+                audio.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
                 document.body.appendChild(audio);
                 remoteAudioRef.current = audio;
             }
             remoteAudioRef.current.srcObject = remoteStream;
-            remoteAudioRef.current.play().catch(() => {
-                // Auto-play blocked — user interaction needed (should be fine since they clicked accept)
-            });
-        } else if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = null;
-            remoteAudioRef.current.remove();
-            remoteAudioRef.current = null;
+            // Multiple play attempts for mobile compatibility
+            const tryPlay = () => {
+                remoteAudioRef.current?.play().catch(() => {
+                    setTimeout(tryPlay, 500);
+                });
+            };
+            tryPlay();
         }
+        return () => {
+            if (!remoteStream && remoteAudioRef.current) {
+                remoteAudioRef.current.pause();
+                remoteAudioRef.current.srcObject = null;
+                remoteAudioRef.current.remove();
+                remoteAudioRef.current = null;
+            }
+        };
     }, [remoteStream]);
 
     useEffect(() => {
@@ -100,6 +117,12 @@ export function useWebRTC() {
             pcRef.current.close();
             pcRef.current = null;
         }
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.pause();
+            remoteAudioRef.current.srcObject = null;
+            remoteAudioRef.current.remove();
+            remoteAudioRef.current = null;
+        }
     };
 
     const cleanup = useCallback(() => {
@@ -110,7 +133,7 @@ export function useWebRTC() {
         setPermissionError(null);
     }, []);
 
-    // Get media stream with requested permissions
+    // Request media permissions
     const getMediaStream = async (callType: 'audio' | 'video'): Promise<MediaStream> => {
         const constraints: MediaStreamConstraints = {
             audio: {
@@ -126,192 +149,272 @@ export function useWebRTC() {
         };
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            return stream;
+            return await navigator.mediaDevices.getUserMedia(constraints);
         } catch (err: unknown) {
-            const error = err as Error;
-            if (error.name === 'NotAllowedError') {
-                throw new Error('Please allow microphone' + (callType === 'video' ? ' and camera' : '') + ' access to make calls');
-            } else if (error.name === 'NotFoundError') {
-                throw new Error('No ' + (callType === 'video' ? 'camera or ' : '') + 'microphone found on this device');
+            const e = err as Error;
+            if (e.name === 'NotAllowedError') {
+                throw new Error('Please allow ' + (callType === 'video' ? 'camera and microphone' : 'microphone') + ' access');
             }
-            throw new Error('Could not access media devices: ' + error.message);
+            if (e.name === 'NotFoundError') {
+                throw new Error('No ' + (callType === 'video' ? 'camera/' : '') + 'microphone found');
+            }
+            throw new Error('Media error: ' + e.message);
         }
     };
 
-    // Setup the peer connection with track handlers
-    const setupPeerConnection = (stream: MediaStream): RTCPeerConnection => {
-        const pc = new RTCPeerConnection(ICE_SERVERS);
-        pcRef.current = pc;
+    // Serialize SDP safely (avoids toJSON issues on some browsers)
+    const serializeSDP = (desc: RTCSessionDescription): { type: string; sdp: string } => ({
+        type: desc.type,
+        sdp: desc.sdp || '',
+    });
 
-        // Add all local tracks (audio + video if video call)
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    // Serialize ICE candidate safely
+    const serializeCandidate = (c: RTCIceCandidate) => ({
+        candidate: c.candidate,
+        sdpMid: c.sdpMid,
+        sdpMLineIndex: c.sdpMLineIndex,
+    });
 
-        // Handle incoming remote tracks
-        const remoteMediaStream = new MediaStream();
-        pc.ontrack = (evt) => {
-            evt.streams[0]?.getTracks().forEach(track => {
-                remoteMediaStream.addTrack(track);
-            });
-            if (isMountedRef.current) {
-                setRemoteStream(new MediaStream(remoteMediaStream.getTracks()));
-            }
-        };
-
-        // Connection state change
-        pc.onconnectionstatechange = () => {
-            if (isMountedRef.current) {
-                setIsConnected(pc.connectionState === 'connected');
-            }
-        };
-
-        return pc;
-    };
-
-    // CALLER (Doctor): Create offer and wait for callee answer
+    // ═══════════ CALLER (Doctor) ═══════════
     const startAsCallerAsync = useCallback(async (callId: string, callType: 'audio' | 'video' = 'audio'): Promise<void> => {
         cleanup();
         setPermissionError(null);
 
+        // 1. Get mic (+ camera for video)
         let stream: MediaStream;
         try {
             stream = await getMediaStream(callType);
         } catch (err: unknown) {
-            const msg = (err as Error).message;
-            setPermissionError(msg);
+            setPermissionError((err as Error).message);
             throw err;
         }
-
         localStreamRef.current = stream;
         setLocalStream(stream);
 
-        const pc = setupPeerConnection(stream);
+        // 2. Create peer connection
+        const pc = new RTCPeerConnection(ICE_SERVERS);
+        pcRef.current = pc;
 
-        // Collect ICE candidates
-        const callerCandidates: RTCIceCandidateInit[] = [];
-        pc.onicecandidate = (evt) => {
-            if (evt.candidate) {
-                callerCandidates.push(evt.candidate.toJSON());
+        // 3. Add local tracks
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+        // 4. Handle remote tracks
+        pc.ontrack = (evt) => {
+            console.log('[WebRTC] Remote track received:', evt.track.kind);
+            if (isMountedRef.current) {
+                const rs = evt.streams[0] || new MediaStream([evt.track]);
+                setRemoteStream(rs);
             }
         };
 
-        // Create & set offer
-        const offer = await pc.createOffer();
+        // 5. Connection state
+        pc.onconnectionstatechange = () => {
+            console.log('[WebRTC] Connection state:', pc.connectionState);
+            if (isMountedRef.current) {
+                setIsConnected(pc.connectionState === 'connected');
+            }
+        };
+        pc.oniceconnectionstatechange = () => {
+            console.log('[WebRTC] ICE state:', pc.iceConnectionState);
+        };
+
+        // 6. Collect ICE candidates
+        const candidates: Array<{ candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }> = [];
+        pc.onicecandidate = (evt) => {
+            if (evt.candidate) {
+                candidates.push(serializeCandidate(evt.candidate));
+                console.log('[WebRTC] Caller ICE candidate:', evt.candidate.type);
+            }
+        };
+
+        // 7. Create offer with explicit audio (and video if needed)
+        const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: callType === 'video',
+        });
         await pc.setLocalDescription(offer);
 
-        await waitForIceGathering(pc);
-
-        // Store offer + ICE candidates in Redis
-        await setSignal(callId, {
-            offer: pc.localDescription!.toJSON(),
-            iceCandidates_caller: callerCandidates,
+        // 8. Wait for ICE gathering (wait longer for TURN)
+        await new Promise<void>((resolve) => {
+            if (pc.iceGatheringState === 'complete') { resolve(); return; }
+            const onDone = () => {
+                if (pc.iceGatheringState === 'complete') {
+                    pc.removeEventListener('icegatheringstatechange', onDone);
+                    resolve();
+                }
+            };
+            pc.addEventListener('icegatheringstatechange', onDone);
+            setTimeout(resolve, 5000); // Longer timeout for TURN resolution
         });
 
-        // Poll Redis for answer from callee
+        // 9. Store offer in Redis
+        const finalOffer = pc.localDescription!;
+        await updateSignal(callId, {
+            offer: serializeSDP(finalOffer),
+            callerCandidates: candidates,
+        });
+        console.log('[WebRTC] Offer stored, ICE candidates:', candidates.length);
+
+        // 10. Poll for answer
         pollRef.current = setInterval(async () => {
             if (!isMountedRef.current || !pcRef.current) return;
             try {
                 const signal = await getSignal(callId);
-                if (signal?.answer && pcRef.current && pcRef.current.signalingState !== 'stable') {
-                    await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal.answer));
-                    // Add callee ICE candidates
-                    if (signal.iceCandidates_callee) {
-                        for (const c of signal.iceCandidates_callee) {
-                            try { await pcRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch { /* ignore */ }
+                if (signal?.answer && pcRef.current.signalingState === 'have-local-offer') {
+                    console.log('[WebRTC] Answer received from callee');
+                    const answerDesc = new RTCSessionDescription({
+                        type: signal.answer.type as RTCSdpType,
+                        sdp: signal.answer.sdp,
+                    });
+                    await pcRef.current.setRemoteDescription(answerDesc);
+
+                    // Add callee's ICE candidates
+                    if (signal.calleeCandidates) {
+                        for (const c of signal.calleeCandidates) {
+                            try {
+                                await pcRef.current.addIceCandidate(new RTCIceCandidate(c));
+                            } catch { /* some candidates may fail, that's ok */ }
                         }
+                        console.log('[WebRTC] Added', signal.calleeCandidates.length, 'callee candidates');
                     }
+
                     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
                 }
-            } catch { /* polling error, will retry */ }
+            } catch (e) {
+                console.error('[WebRTC] Poll error:', e);
+            }
         }, 1500);
     }, [cleanup]);
 
-    // CALLEE (Patient): Receive offer, create answer
+    // ═══════════ CALLEE (Patient) ═══════════
     const startAsCalleeAsync = useCallback(async (callId: string, callType: 'audio' | 'video' = 'audio'): Promise<void> => {
         cleanup();
         setPermissionError(null);
 
-        // Get the signaling data (offer from caller)
-        const signal = await getSignal(callId);
+        // 1. Get offer from Redis (retry a few times)
+        let signal: SignalData | null = null;
+        for (let i = 0; i < 5; i++) {
+            signal = await getSignal(callId);
+            if (signal?.offer) break;
+            await new Promise(r => setTimeout(r, 1000));
+        }
         if (!signal?.offer) {
-            console.error('No offer found for call', callId);
+            console.error('[WebRTC] No offer found after retries');
+            setPermissionError('Could not find call signal. Please try again.');
             return;
         }
+        console.log('[WebRTC] Got offer from caller');
 
+        // 2. Get mic (+ camera for video)
         let stream: MediaStream;
         try {
             stream = await getMediaStream(callType);
         } catch (err: unknown) {
-            const msg = (err as Error).message;
-            setPermissionError(msg);
+            setPermissionError((err as Error).message);
             throw err;
         }
-
         localStreamRef.current = stream;
         setLocalStream(stream);
 
-        const pc = setupPeerConnection(stream);
+        // 3. Create peer connection
+        const pc = new RTCPeerConnection(ICE_SERVERS);
+        pcRef.current = pc;
 
-        // Collect ICE candidates
-        const calleeCandidates: RTCIceCandidateInit[] = [];
-        pc.onicecandidate = (evt) => {
-            if (evt.candidate) {
-                calleeCandidates.push(evt.candidate.toJSON());
+        // 4. Add local tracks
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+        // 5. Handle remote tracks
+        pc.ontrack = (evt) => {
+            console.log('[WebRTC] Remote track received:', evt.track.kind);
+            if (isMountedRef.current) {
+                const rs = evt.streams[0] || new MediaStream([evt.track]);
+                setRemoteStream(rs);
             }
         };
 
-        // Set remote offer from caller
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.offer));
-
-        // Add caller's ICE candidates
-        if (signal.iceCandidates_caller) {
-            for (const c of signal.iceCandidates_caller) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* ignore */ }
+        // 6. Connection state
+        pc.onconnectionstatechange = () => {
+            console.log('[WebRTC] Connection state:', pc.connectionState);
+            if (isMountedRef.current) {
+                setIsConnected(pc.connectionState === 'connected');
             }
+        };
+        pc.oniceconnectionstatechange = () => {
+            console.log('[WebRTC] ICE state:', pc.iceConnectionState);
+        };
+
+        // 7. Collect ICE candidates
+        const candidates: Array<{ candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }> = [];
+        pc.onicecandidate = (evt) => {
+            if (evt.candidate) {
+                candidates.push(serializeCandidate(evt.candidate));
+                console.log('[WebRTC] Callee ICE candidate:', evt.candidate.type);
+            }
+        };
+
+        // 8. Set remote offer
+        const offerDesc = new RTCSessionDescription({
+            type: signal.offer.type as RTCSdpType,
+            sdp: signal.offer.sdp,
+        });
+        await pc.setRemoteDescription(offerDesc);
+
+        // 9. Add caller's ICE candidates
+        if (signal.callerCandidates) {
+            for (const c of signal.callerCandidates) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(c));
+                } catch { /* ok */ }
+            }
+            console.log('[WebRTC] Added', signal.callerCandidates.length, 'caller candidates');
         }
 
-        // Create & set answer
+        // 10. Create answer
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
-        await waitForIceGathering(pc);
-
-        // Store answer + callee ICE candidates in Redis
-        await setSignal(callId, {
-            ...signal,
-            answer: pc.localDescription!.toJSON(),
-            iceCandidates_callee: calleeCandidates,
+        // 11. Wait for ICE gathering
+        await new Promise<void>((resolve) => {
+            if (pc.iceGatheringState === 'complete') { resolve(); return; }
+            const onDone = () => {
+                if (pc.iceGatheringState === 'complete') {
+                    pc.removeEventListener('icegatheringstatechange', onDone);
+                    resolve();
+                }
+            };
+            pc.addEventListener('icegatheringstatechange', onDone);
+            setTimeout(resolve, 5000);
         });
+
+        // 12. Store answer in Redis
+        const finalAnswer = pc.localDescription!;
+        await updateSignal(callId, {
+            answer: serializeSDP(finalAnswer),
+            calleeCandidates: candidates,
+        });
+        console.log('[WebRTC] Answer stored, ICE candidates:', candidates.length);
     }, [cleanup]);
 
-    // Toggle microphone mute/unmute
+    // ═══════════ Controls ═══════════
     const toggleMute = useCallback((muted: boolean) => {
-        if (localStreamRef.current) {
-            localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !muted; });
-        }
+        localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = !muted; });
     }, []);
 
-    // Toggle camera on/off
     const toggleCamera = useCallback((off: boolean) => {
-        if (localStreamRef.current) {
-            localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !off; });
-        }
+        localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = !off; });
     }, []);
 
-    // Stop WebRTC completely
     const stopCall = useCallback(() => {
         cleanup();
     }, [cleanup]);
 
     return {
-        // Actions
         startAsCallerAsync,
         startAsCalleeAsync,
         toggleMute,
         toggleCamera,
         stopCall,
         cleanup,
-        // State for UI binding
         localStream,
         remoteStream,
         isConnected,
