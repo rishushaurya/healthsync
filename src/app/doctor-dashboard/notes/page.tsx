@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, Plus, Search, User } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorNotes, getDoctorAppointments,
+    getCurrentDoctor, getDoctorNotes,
     addDoctorNote, generateId, type DoctorAccount, type DoctorNote
 } from '@/lib/store';
+import { cloudGetDoctorAppointments } from '@/lib/shared-store';
 
 export default function NotesPage() {
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
@@ -23,10 +24,11 @@ export default function NotesPage() {
         if (!doc) return;
         setDoctor(doc);
         setNotes(getDoctorNotes(doc.id));
-        const apts = getDoctorAppointments(doc.id);
-        const pMap = new Map<string, string>();
-        apts.forEach(a => pMap.set(a.userId, a.patientName));
-        setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
+        cloudGetDoctorAppointments(doc.id).then(apts => {
+            const pMap = new Map<string, string>();
+            apts.forEach(a => pMap.set(a.userId, a.patientName));
+            setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
+        });
     }, []);
 
     const createNote = () => {

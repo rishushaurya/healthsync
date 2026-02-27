@@ -7,9 +7,9 @@ import {
     FileText, Plus, Search, X, Check, ChevronDown, Send, Pill
 } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorAppointments, getDoctorPrescriptions,
-    addPrescription, generateId, type DoctorAccount, type Prescription
+    getCurrentDoctor, generateId, type DoctorAccount, type Prescription
 } from '@/lib/store';
+import { cloudGetDoctorAppointments, cloudGetDoctorPrescriptions, cloudAddPrescription, cloudAddNotification } from '@/lib/shared-store';
 
 export default function PrescriptionsPage() {
     const searchParams = useSearchParams();
@@ -32,13 +32,18 @@ export default function PrescriptionsPage() {
         const doc = getCurrentDoctor();
         if (!doc) return;
         setDoctor(doc);
-        setPrescriptions(getDoctorPrescriptions(doc.id));
-        const apts = getDoctorAppointments(doc.id);
-        const pMap = new Map<string, string>();
-        apts.forEach(a => pMap.set(a.userId, a.patientName));
-        setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
-        const urlPatient = searchParams.get('patient');
-        if (urlPatient) { setSelectedPatient(urlPatient); setShowCreate(true); }
+        (async () => {
+            const [presc, apts] = await Promise.all([
+                cloudGetDoctorPrescriptions(doc.id),
+                cloudGetDoctorAppointments(doc.id),
+            ]);
+            setPrescriptions(presc);
+            const pMap = new Map<string, string>();
+            apts.forEach(a => pMap.set(a.userId, a.patientName));
+            setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
+            const urlPatient = searchParams.get('patient');
+            if (urlPatient) { setSelectedPatient(urlPatient); setShowCreate(true); }
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -48,17 +53,22 @@ export default function PrescriptionsPage() {
         setMedicines(prev => prev.map((m, idx) => idx === i ? { ...m, [field]: value } : m));
     };
 
-    const submitPrescription = () => {
+    const submitPrescription = async () => {
         if (!doctor || !selectedPatient || !diagnosis || medicines.some(m => !m.name)) return;
-        const patientName = patients.find(p => p.userId === selectedPatient)?.name || '';
         const rx: Prescription = {
             id: generateId(), recipientUserId: selectedPatient, doctorId: doctor.id,
             doctorName: doctor.name, date: new Date().toISOString(), diagnosis,
             medicines: medicines.filter(m => m.name.trim()),
             advice, followUpDate: followUp || undefined, status: 'active',
         };
-        addPrescription(rx);
-        setPrescriptions(getDoctorPrescriptions(doctor.id));
+        await cloudAddPrescription(rx);
+        await cloudAddNotification({
+            id: generateId(), userId: selectedPatient, type: 'prescription',
+            title: 'New Prescription', message: `${doctor.name} has sent you a prescription for ${diagnosis}`,
+            timestamp: new Date().toISOString(), read: false, link: '/prescriptions',
+        });
+        const updated = await cloudGetDoctorPrescriptions(doctor.id);
+        setPrescriptions(updated);
         setShowCreate(false);
         setDiagnosis(''); setAdvice(''); setFollowUp('');
         setMedicines([{ name: '', dosage: '', frequency: 'Twice daily', duration: '7 days', notes: '' }]);

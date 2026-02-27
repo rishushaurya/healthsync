@@ -7,7 +7,8 @@ import {
     Stethoscope, Plus, ArrowRight, CalendarDays, TrendingUp, Brain, X, Trash2, Loader2,
     ClipboardList, HeartPulse, Salad
 } from 'lucide-react';
-import { getJourneys, addJourney, updateJourney, setJourneys, generateId, getCurrentUser, getPatientPrescriptions, type HealthJourney, type TimelineStep, type Medication, type DietItem, type Prescription } from '@/lib/store';
+import { getJourneys, addJourney, updateJourney, setJourneys, generateId, getCurrentUser, type HealthJourney, type TimelineStep, type Medication, type DietItem, type Prescription } from '@/lib/store';
+import { cloudGetPatientPrescriptions } from '@/lib/shared-store';
 
 const typeIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
     checkup: { icon: Stethoscope, color: '#0EA5E9' },
@@ -30,7 +31,9 @@ export default function RecoveryPage() {
     useEffect(() => {
         setJourneysList(getJourneys());
         const user = getCurrentUser();
-        if (user) setPrescriptions(getPatientPrescriptions(user.id).filter(p => p.status === 'active'));
+        if (user) {
+            cloudGetPatientPrescriptions(user.id).then(presc => setPrescriptions(presc.filter(p => p.status === 'active')));
+        }
     }, []);
 
     const activeJourney = journeys.find(j => j.status === 'active');

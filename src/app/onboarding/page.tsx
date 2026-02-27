@@ -9,6 +9,7 @@ import {
     Hospital, Search, Dumbbell, ChartLine, Pill, Monitor, Salad
 } from 'lucide-react';
 import { getCurrentUser, setCurrentUser, type UserProfile } from '@/lib/store';
+import { cloudUpdateUser } from '@/lib/shared-store';
 
 const ONBOARDING_STEPS = [
     {
@@ -209,6 +210,8 @@ export default function OnboardingPage() {
         if (user) {
             const updated = { ...user, ...data, onboardingComplete: true };
             setCurrentUser(updated);
+            // Sync completed profile to cloud for cross-device access
+            cloudUpdateUser(updated);
         }
 
         setTimeout(() => {

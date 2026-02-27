@@ -8,17 +8,18 @@ import {
     Thermometer, Droplets, Phone, Plus, ClipboardList, Calendar
 } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorAppointments, getPatientData,
-    getDoctorNotes, addDoctorNote, generateId, type DoctorAccount
+    getCurrentDoctor, getDoctorNotes, addDoctorNote, generateId, type DoctorAccount
 } from '@/lib/store';
+import { cloudGetDoctorAppointments, cloudGetPatientData } from '@/lib/shared-store';
 
 export default function PatientsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
-    const [appointments, setAppointments] = useState<ReturnType<typeof getDoctorAppointments>>([]);
+    const [appointments, setAppointments] = useState<{ userId: string; patientName: string; patientEmail: string; date: string; time: string; status: string; id: string; doctorId: string; doctorName: string; specialty: string; location: string; notes: string }[]>([]);
     const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
-    const [patientData, setPatientDataState] = useState<ReturnType<typeof getPatientData>>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [patientData, setPatientDataState] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('overview');
     const [noteText, setNoteText] = useState('');
@@ -29,16 +30,20 @@ export default function PatientsPage() {
         const doc = getCurrentDoctor();
         if (!doc) return;
         setDoctor(doc);
-        setAppointments(getDoctorAppointments(doc.id));
-        const urlId = searchParams.get('id');
-        if (urlId) viewPatient(urlId, doc.id);
+        (async () => {
+            const apts = await cloudGetDoctorAppointments(doc.id);
+            setAppointments(apts);
+            const urlId = searchParams.get('id');
+            if (urlId) viewPatient(urlId, doc.id);
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
-    const viewPatient = (userId: string, docId?: string) => {
+    const viewPatient = async (userId: string, docId?: string) => {
         const did = docId || doctor?.id || '';
         setSelectedPatient(userId);
-        setPatientDataState(getPatientData(userId, did));
+        const pd = await cloudGetPatientData(userId, did);
+        setPatientDataState(pd);
         setPatientNotes(getDoctorNotes(did, userId));
         setActiveTab('overview');
     };
@@ -162,7 +167,7 @@ export default function PatientsPage() {
                                 </div>
                                 {patientData.profile.existingConditions?.length > 0 && (
                                     <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                        {patientData.profile.existingConditions.map(c => (
+                                        {patientData.profile.existingConditions.map((c: string) => (
                                             <span key={c} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, background: 'rgba(245,158,11,0.1)', color: '#F59E0B', fontWeight: 600 }}>{c}</span>
                                         ))}
                                     </div>
