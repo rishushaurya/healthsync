@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Brain, Mail, Lock, User, Phone, ArrowRight, Eye, EyeOff, Stethoscope } from 'lucide-react';
-import { setCurrentUser, generateId, registerUser, loginUser, simpleHash, loginDoctor, setCurrentDoctor, type UserProfile } from '@/lib/store';
+import { setCurrentUser, generateId, simpleHash, loginDoctor, setCurrentDoctor, registerUser, loginUser, type UserProfile } from '@/lib/store';
+import { cloudRegisterUser, cloudLoginUser, cloudUpdateUser } from '@/lib/shared-store';
 
 export default function AuthPage() {
     const router = useRouter();
@@ -62,31 +63,43 @@ export default function AuthPage() {
                 createdAt: new Date().toISOString(),
             };
 
-            const result = registerUser(user);
-            if (!result.success) {
-                setError(result.error || 'Registration failed');
+            // Register in both cloud (Redis) and local (localStorage)
+            const cloudResult = await cloudRegisterUser(user);
+            if (!cloudResult.success) {
+                setError(cloudResult.error || 'Registration failed');
                 setLoading(false);
                 return;
             }
-
+            registerUser(user); // Also save locally
             setCurrentUser(user);
             router.push('/onboarding');
             return;
         }
 
-        // Patient Sign In
+        // Patient Sign In — try cloud first, then fall back to local
         if (!form.email.trim()) { setError('Please enter your email'); setLoading(false); return; }
         if (!form.password) { setError('Please enter your password'); setLoading(false); return; }
 
-        const result = loginUser(form.email.trim(), form.password);
-        if (!result.success) {
-            setError(result.error || 'Login failed');
-            setLoading(false);
+        const cloudResult = await cloudLoginUser(form.email.trim(), form.password);
+        if (cloudResult.success && cloudResult.user) {
+            // Also save locally so local pages work instantly
+            registerUser(cloudResult.user);
+            setCurrentUser(cloudResult.user);
+            router.push(cloudResult.user.onboardingComplete ? '/dashboard' : '/onboarding');
             return;
         }
 
-        setCurrentUser(result.user!);
-        router.push(result.user!.onboardingComplete ? '/dashboard' : '/onboarding');
+        // Fallback to local store
+        const localResult = loginUser(form.email.trim(), form.password);
+        if (!localResult.success) {
+            setError(cloudResult.error || localResult.error || 'Login failed');
+            setLoading(false);
+            return;
+        }
+        setCurrentUser(localResult.user!);
+        // Also sync to cloud
+        cloudUpdateUser(localResult.user!);
+        router.push(localResult.user!.onboardingComplete ? '/dashboard' : '/onboarding');
     };
 
     return (

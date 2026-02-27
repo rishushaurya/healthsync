@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Pill, Calendar, Download, CheckCircle, Clock } from 'lucide-react';
-import { getCurrentUser, getPatientPrescriptions, type Prescription } from '@/lib/store';
+import { getCurrentUser, type Prescription } from '@/lib/store';
+import { cloudGetPatientPrescriptions } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
 
 export default function UserPrescriptionsPage() {
@@ -12,7 +13,7 @@ export default function UserPrescriptionsPage() {
 
     useEffect(() => {
         const user = getCurrentUser();
-        if (user) setPrescriptions(getPatientPrescriptions(user.id));
+        if (user) cloudGetPatientPrescriptions(user.id).then(setPrescriptions);
     }, []);
 
     const downloadPrescription = (rx: Prescription) => {

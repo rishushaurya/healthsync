@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, PhoneIncoming } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import { getCurrentUser, getActiveCall, updateCallLog, addNotification, generateId, type CallLog } from '@/lib/store';
+import { getCurrentUser, generateId, type CallLog } from '@/lib/store';
+import { cloudGetActiveCall, cloudUpdateCallLog, cloudAddNotification } from '@/lib/shared-store';
 
 export default function IncomingCallOverlay() {
     const router = useRouter();
@@ -22,26 +23,26 @@ export default function IncomingCallOverlay() {
     useEffect(() => {
         if (!userId) return;
 
-        const interval = setInterval(() => {
-            const call = getActiveCall();
+        const interval = setInterval(async () => {
+            const call = await cloudGetActiveCall();
             // If there's an active ringing call for this user
             if (call && call.userId === userId && call.status === 'ringing') {
                 setActiveCall(call);
             } else {
                 setActiveCall(null);
             }
-        }, 1000);
+        }, 1500);
 
         return () => clearInterval(interval);
     }, [userId]);
 
-    const acceptCall = () => {
+    const acceptCall = async () => {
         if (!activeCall) return;
 
         // Update the call status to ongoing
-        updateCallLog(activeCall.id, { status: 'ongoing' });
+        await cloudUpdateCallLog(activeCall.id, { status: 'ongoing' });
 
-        addNotification({
+        await cloudAddNotification({
             id: generateId(),
             userId,
             type: 'call',
@@ -59,12 +60,12 @@ export default function IncomingCallOverlay() {
         }
     };
 
-    const rejectCall = () => {
+    const rejectCall = async () => {
         if (!activeCall) return;
 
-        updateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
+        await cloudUpdateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
 
-        addNotification({
+        await cloudAddNotification({
             id: generateId(),
             userId,
             type: 'call',

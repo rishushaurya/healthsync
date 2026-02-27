@@ -6,7 +6,8 @@ import {
     Phone, Video, PhoneOff, PhoneIncoming, Mic, MicOff, Camera, CameraOff, Clock,
     Monitor, MonitorOff, PhoneCall, PhoneMissed
 } from 'lucide-react';
-import { getCurrentUser, getCallLogs, getActiveCall, updateCallLog, addNotification, generateId, type CallLog } from '@/lib/store';
+import { getCurrentUser, generateId, type CallLog } from '@/lib/store';
+import { cloudGetCallLogs, cloudGetActiveCall, cloudUpdateCallLog, cloudAddNotification } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
 
 export default function UserCallsPage() {
@@ -30,21 +31,22 @@ export default function UserCallsPage() {
         const user = getCurrentUser();
         if (!user) return;
         setUserId(user.id);
-        setCallHistory(getCallLogs(user.id, 'user'));
+        cloudGetCallLogs(user.id, 'user').then(setCallHistory);
     }, []);
 
     useEffect(() => {
         if (!userId) return;
-        const interval = setInterval(() => {
-            const call = getActiveCall();
+        const interval = setInterval(async () => {
+            const call = await cloudGetActiveCall();
             if (call && call.userId === userId && (call.status === 'ringing' || call.status === 'ongoing')) {
                 setActiveCall(call);
             } else if (activeCallRef.current && call === null) {
                 setActiveCall(null);
                 setCallDuration(0);
-                setCallHistory(getCallLogs(userId, 'user'));
+                const history = await cloudGetCallLogs(userId, 'user');
+                setCallHistory(history);
             }
-        }, 1000);
+        }, 1500);
         return () => clearInterval(interval);
     }, [userId]);
 
@@ -54,12 +56,12 @@ export default function UserCallsPage() {
         return () => clearInterval(interval);
     }, [activeCall?.status]);
 
-    const acceptCall = () => {
+    const acceptCall = async () => {
         if (!activeCall) return;
-        updateCallLog(activeCall.id, { status: 'ongoing' });
+        await cloudUpdateCallLog(activeCall.id, { status: 'ongoing' });
         setActiveCall(prev => prev ? { ...prev, status: 'ongoing' } : null);
         setCallDuration(0);
-        addNotification({
+        await cloudAddNotification({
             id: generateId(), userId, type: 'call',
             title: `${activeCall.type === 'video' ? 'Video' : 'Audio'} Call Started`,
             message: `Connected with ${activeCall.doctorName}`,
@@ -67,24 +69,25 @@ export default function UserCallsPage() {
         });
     };
 
-    const rejectCall = () => {
+    const rejectCall = async () => {
         if (!activeCall) return;
-        updateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
-        addNotification({
+        await cloudUpdateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
+        await cloudAddNotification({
             id: generateId(), userId, type: 'call',
             title: 'Missed Call',
             message: `Missed call from ${activeCall.doctorName}`,
             timestamp: new Date().toISOString(), read: false,
         });
         setActiveCall(null);
-        setCallHistory(getCallLogs(userId, 'user'));
+        const history = await cloudGetCallLogs(userId, 'user');
+        setCallHistory(history);
     };
 
-    const endCall = () => {
+    const endCall = async () => {
         const call = activeCallRef.current;
         if (!call) return;
-        updateCallLog(call.id, { status: 'completed', endTime: new Date().toISOString(), duration: callDurationRef.current });
-        addNotification({
+        await cloudUpdateCallLog(call.id, { status: 'completed', endTime: new Date().toISOString(), duration: callDurationRef.current });
+        await cloudAddNotification({
             id: generateId(), userId: userIdRef.current, type: 'call',
             title: 'Call Ended',
             message: `Call with ${call.doctorName} ended. Duration: ${formatDuration(callDurationRef.current)}`,
@@ -93,7 +96,8 @@ export default function UserCallsPage() {
         setActiveCall(null);
         setCallDuration(0);
         setIsScreenShare(false);
-        setCallHistory(getCallLogs(userIdRef.current, 'user'));
+        const history = await cloudGetCallLogs(userIdRef.current, 'user');
+        setCallHistory(history);
     };
 
     const formatDuration = (secs: number) => {

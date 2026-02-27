@@ -8,11 +8,14 @@ import {
     Clock, User, Search, Brain, FileText, Send, Loader2, Check, X, Pill
 } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorAppointments, getCallLogs,
-    addCallLog, updateCallLog, generateId, addPrescription, addNotification,
-    getPatientData, getAllUsers,
+    getCurrentDoctor, generateId,
     type DoctorAccount, type CallLog
 } from '@/lib/store';
+import {
+    cloudGetDoctorAppointments, cloudGetCallLogs, cloudAddCallLog,
+    cloudUpdateCallLog, cloudGetActiveCall, cloudAddPrescription,
+    cloudAddNotification, cloudGetPatientData, cloudGetAllUsers
+} from '@/lib/shared-store';
 
 export default function CallsPage() {
     const searchParams = useSearchParams();
@@ -54,48 +57,61 @@ export default function CallsPage() {
         const doc = getCurrentDoctor();
         if (!doc) return;
         setDoctor(doc);
-        setCallHistory(getCallLogs(doc.id, 'doctor'));
-        const apts = getDoctorAppointments(doc.id);
-        const pMap = new Map<string, string>();
-        apts.forEach(a => pMap.set(a.userId, a.patientName));
-        setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
-        const urlP = searchParams.get('patient');
-        if (urlP) { setSelectedPatient(urlP); setShowDialer(true); }
+        // Load from cloud
+        (async () => {
+            const [history, apts] = await Promise.all([
+                cloudGetCallLogs(doc.id, 'doctor'),
+                cloudGetDoctorAppointments(doc.id),
+            ]);
+            setCallHistory(history);
+            const pMap = new Map<string, string>();
+            apts.forEach(a => pMap.set(a.userId, a.patientName));
+            setPatients(Array.from(pMap.entries()).map(([userId, name]) => ({ userId, name })));
+            const urlP = searchParams.get('patient');
+            if (urlP) { setSelectedPatient(urlP); setShowDialer(true); }
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
-    // Poll for call status changes (e.g., user accepting or rejecting)
+    // Poll for call status changes from cloud (e.g., user accepting or rejecting)
     useEffect(() => {
         if (!activeCall) return;
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
             const call = activeCallRef.current;
             if (!call) return;
-            // Re-read the call status from localStorage
-            const allLogs: CallLog[] = JSON.parse(localStorage.getItem('hs_call_logs') || '[]');
-            const updatedCall = allLogs.find(c => c.id === call.id);
-            if (updatedCall) {
+            // Re-read the call status from cloud
+            const updatedCall = await cloudGetActiveCall();
+            if (updatedCall && updatedCall.id === call.id) {
                 if (updatedCall.status !== call.status) {
                     if (updatedCall.status === 'ongoing') {
-                        // User accepted the call
                         setActiveCall({ ...updatedCall });
                     } else if (updatedCall.status === 'missed' || updatedCall.status === 'completed') {
-                        // User rejected or call ended from user side
                         setLastEndedCall(call);
                         setLastCallDuration(callDurationRef.current);
                         setActiveCall(null);
                         setCallDuration(0);
                         setShowDialer(false);
-                        if (doctorRef.current) setCallHistory(getCallLogs(doctorRef.current.id, 'doctor'));
-                        // Show prescription modal for completed calls
-                        if (updatedCall.status === 'missed') {
-                            // Don't show prescription for missed calls
-                        } else {
+                        if (doctorRef.current) {
+                            const h = await cloudGetCallLogs(doctorRef.current.id, 'doctor');
+                            setCallHistory(h);
+                        }
+                        if (updatedCall.status !== 'missed') {
                             setShowPrescriptionModal(true);
                         }
                     }
                 }
+            } else if (!updatedCall && call.status === 'ringing') {
+                // User may have rejected (status changed to missed, no longer active)
+                setLastEndedCall(call);
+                setActiveCall(null);
+                setCallDuration(0);
+                setShowDialer(false);
+                if (doctorRef.current) {
+                    const h = await cloudGetCallLogs(doctorRef.current.id, 'doctor');
+                    setCallHistory(h);
+                }
             }
-        }, 800);
+        }, 1500);
         return () => clearInterval(interval);
     }, [activeCall?.id]);
 
@@ -106,7 +122,7 @@ export default function CallsPage() {
         return () => clearInterval(interval);
     }, [activeCall?.status]);
 
-    const startCall = (type: 'audio' | 'video') => {
+    const startCall = async (type: 'audio' | 'video') => {
         if (!doctor || !selectedPatient) return;
         const patientName = patients.find(p => p.userId === selectedPatient)?.name || 'Patient';
         const call: CallLog = {
@@ -114,18 +130,18 @@ export default function CallsPage() {
             userId: selectedPatient, userName: patientName,
             type, status: 'ringing', startTime: new Date().toISOString(),
         };
-        addCallLog(call);
+        await cloudAddCallLog(call);
         setActiveCall(call);
         setCallType(type);
         setCallDuration(0);
         // NO auto-accept! The call stays in 'ringing' until the user accepts or rejects.
     };
 
-    const endCall = () => {
+    const endCall = async () => {
         const call = activeCallRef.current;
         if (!call) return;
         const duration = callDurationRef.current;
-        updateCallLog(call.id, {
+        await cloudUpdateCallLog(call.id, {
             status: 'completed', endTime: new Date().toISOString(), duration,
         });
         setLastEndedCall(call);
@@ -133,8 +149,10 @@ export default function CallsPage() {
         setActiveCall(null);
         setCallDuration(0);
         setShowDialer(false);
-        if (doctorRef.current) setCallHistory(getCallLogs(doctorRef.current.id, 'doctor'));
-        // Show AI prescription modal after call completes
+        if (doctorRef.current) {
+            const h = await cloudGetCallLogs(doctorRef.current.id, 'doctor');
+            setCallHistory(h);
+        }
         if (duration > 0) {
             setShowPrescriptionModal(true);
         }
@@ -144,9 +162,9 @@ export default function CallsPage() {
         if (!doctor || !lastEndedCall) return;
         setGeneratingPrescription(true);
 
-        // Get patient data for context
-        const patientData = getPatientData(lastEndedCall.userId, doctor.id);
-        const allUsers = getAllUsers();
+        // Get patient data for context from cloud
+        const patientData = await cloudGetPatientData(lastEndedCall.userId, doctor.id);
+        const allUsers = await cloudGetAllUsers();
         const patient = allUsers.find(u => u.id === lastEndedCall.userId);
 
         try {
@@ -175,13 +193,13 @@ export default function CallsPage() {
         setGeneratingPrescription(false);
     };
 
-    const sendPrescription = () => {
+    const sendPrescription = async () => {
         if (!doctor || !lastEndedCall || !generatedPrescription) return;
 
         const followUpDate = new Date();
         followUpDate.setDate(followUpDate.getDate() + (generatedPrescription.followUpDays || 7));
 
-        addPrescription({
+        await cloudAddPrescription({
             id: generateId(),
             recipientUserId: lastEndedCall.userId,
             doctorId: doctor.id,
@@ -194,8 +212,8 @@ export default function CallsPage() {
             status: 'active',
         });
 
-        // Send notification to the patient
-        addNotification({
+        // Send notification to the patient in cloud
+        await cloudAddNotification({
             id: generateId(),
             userId: lastEndedCall.userId,
             type: 'prescription',

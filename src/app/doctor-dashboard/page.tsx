@@ -8,14 +8,14 @@ import {
     TrendingUp, Activity, ChevronRight, Bell
 } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorAppointments, getDoctorPrescriptions,
-    getCallLogs, getDoctorNotes, type DoctorAccount
+    getCurrentDoctor, getDoctorNotes, type DoctorAccount
 } from '@/lib/store';
+import { cloudGetDoctorAppointments, cloudGetDoctorPrescriptions, cloudGetCallLogs } from '@/lib/shared-store';
 
 export default function DoctorDashboard() {
     const router = useRouter();
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
-    const [appointments, setAppointments] = useState<ReturnType<typeof getDoctorAppointments>>([]);
+    const [appointments, setAppointments] = useState<{ userId: string; patientName: string; patientEmail: string; date: string; time: string; status: string; id: string; doctorId: string; doctorName: string; specialty: string; location: string; notes: string }[]>([]);
     const [prescriptionCount, setPrescriptionCount] = useState(0);
     const [callCount, setCallCount] = useState(0);
     const [noteCount, setNoteCount] = useState(0);
@@ -24,11 +24,18 @@ export default function DoctorDashboard() {
         const doc = getCurrentDoctor();
         if (!doc) return;
         setDoctor(doc);
-        const apts = getDoctorAppointments(doc.id);
-        setAppointments(apts);
-        setPrescriptionCount(getDoctorPrescriptions(doc.id).length);
-        setCallCount(getCallLogs(doc.id, 'doctor').length);
         setNoteCount(getDoctorNotes(doc.id).length);
+        // Fetch shared data from cloud
+        (async () => {
+            const [apts, presc, calls] = await Promise.all([
+                cloudGetDoctorAppointments(doc.id),
+                cloudGetDoctorPrescriptions(doc.id),
+                cloudGetCallLogs(doc.id, 'doctor'),
+            ]);
+            setAppointments(apts);
+            setPrescriptionCount(presc.length);
+            setCallCount(calls.length);
+        })();
     }, []);
 
     if (!doctor) return null;

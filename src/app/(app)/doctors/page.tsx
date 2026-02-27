@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Star, MapPin, Clock, Calendar, X, CheckCircle, Phone, Filter } from 'lucide-react';
 import { addAppointment, generateId, getCurrentUser } from '@/lib/store';
+import { cloudAddAppointment, cloudAddNotification } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
 
 const doctors = [
@@ -54,21 +55,39 @@ export default function DoctorsPage() {
         return days;
     };
 
-    const handleBook = () => {
+    const handleBook = async () => {
         const doctor = doctors.find(d => d.id === showBooking);
         if (!doctor || !selectedDate || !selectedTime) return;
+        const user = getCurrentUser();
+        const userId = user?.id || 'unknown';
 
-        addAppointment({
+        const apt = {
             id: generateId(),
-            userId: getCurrentUser()?.id || 'unknown',
+            userId,
             doctorId: doctor.id,
             doctorName: doctor.name,
             specialty: doctor.specialty,
             date: selectedDate,
             time: selectedTime,
-            status: 'booked',
+            status: 'booked' as const,
             location: doctor.hospital,
             notes: '',
+        };
+
+        // Save to both local and cloud
+        addAppointment(apt);
+        await cloudAddAppointment(apt);
+
+        // Send notification to cloud
+        await cloudAddNotification({
+            id: generateId(),
+            userId,
+            type: 'appointment',
+            title: 'Appointment Booked',
+            message: `Appointment with ${doctor.name} on ${selectedDate} at ${selectedTime}`,
+            timestamp: new Date().toISOString(),
+            read: false,
+            link: '/doctors',
         });
 
         setBookingSuccess(true);

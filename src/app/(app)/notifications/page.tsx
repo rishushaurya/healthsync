@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Bell, Package, FileText, Calendar, Phone, CheckCircle, Filter, Check } from 'lucide-react';
-import {
-    getNotifications, markNotificationRead, markAllNotificationsRead,
-    type Notification
-} from '@/lib/store';
+import { getCurrentUser, type Notification } from '@/lib/store';
+import { cloudGetNotifications, cloudMarkNotificationRead, cloudMarkAllNotificationsRead } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
 
 const typeIcons: Record<string, typeof Bell> = {
@@ -20,19 +18,25 @@ export default function NotificationsPage() {
     const { t } = useLanguage();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [filter, setFilter] = useState<string>('all');
+    const [userId, setUserId] = useState('');
 
     useEffect(() => {
-        setNotifications(getNotifications().slice().reverse());
+        const user = getCurrentUser();
+        if (!user) return;
+        setUserId(user.id);
+        cloudGetNotifications(user.id).then(n => setNotifications(n.slice().reverse()));
     }, []);
 
-    const handleMarkRead = (id: string) => {
-        markNotificationRead(id);
-        setNotifications(getNotifications().slice().reverse());
+    const handleMarkRead = async (id: string) => {
+        await cloudMarkNotificationRead(userId, id);
+        const n = await cloudGetNotifications(userId);
+        setNotifications(n.slice().reverse());
     };
 
-    const handleMarkAllRead = () => {
-        markAllNotificationsRead();
-        setNotifications(getNotifications().slice().reverse());
+    const handleMarkAllRead = async () => {
+        await cloudMarkAllNotificationsRead(userId);
+        const n = await cloudGetNotifications(userId);
+        setNotifications(n.slice().reverse());
     };
 
     const filtered = filter === 'all' ? notifications : notifications.filter(n => n.type === filter);
