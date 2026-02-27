@@ -140,7 +140,7 @@ export default function CallsPage() {
         setCallDuration(0);
         // Start WebRTC as the caller — create SDP offer and wait for callee answer
         try {
-            await webrtc.startAsCallerAsync(call.id);
+            await webrtc.startAsCallerAsync(call.id, type);
         } catch (e) {
             console.error('WebRTC caller setup failed:', e);
         }
@@ -282,7 +282,27 @@ export default function CallsPage() {
                             background: callType === 'video' ? 'linear-gradient(135deg, #0B1120, #1a0b2e)' : 'linear-gradient(135deg, #0B1120, #0c2035)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24,
                         }}>
-                        {callType === 'video' && activeCall.status === 'ongoing' && (
+                        {/* Remote Video (full screen background) */}
+                        {callType === 'video' && activeCall.status === 'ongoing' && webrtc.remoteStream && (
+                            <video
+                                ref={el => { if (el && el.srcObject !== webrtc.remoteStream) el.srcObject = webrtc.remoteStream; }}
+                                autoPlay playsInline
+                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                        )}
+                        {/* Local Video (small pip) */}
+                        {callType === 'video' && webrtc.localStream && (
+                            <video
+                                ref={el => { if (el && el.srcObject !== webrtc.localStream) el.srcObject = webrtc.localStream; }}
+                                autoPlay playsInline muted
+                                style={{
+                                    position: 'absolute', bottom: 100, right: 20, width: 120, height: 160,
+                                    borderRadius: 12, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.3)',
+                                    zIndex: 10, background: '#000',
+                                }}
+                            />
+                        )}
+                        {callType === 'video' && activeCall.status === 'ongoing' && !webrtc.remoteStream && (
                             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.1 }}>
                                 <Video size={200} />
                             </div>
@@ -320,6 +340,21 @@ export default function CallsPage() {
                         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>
                             {activeCall.status === 'ringing' ? 'Ringing... waiting for patient to accept' : formatDuration(callDuration)}
                         </p>
+                        {/* Permission error */}
+                        {webrtc.permissionError && (
+                            <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: 12, maxWidth: 300, textAlign: 'center' }}>
+                                {webrtc.permissionError}
+                            </div>
+                        )}
+                        {/* Connection status */}
+                        {activeCall.status === 'ongoing' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: webrtc.isConnected ? '#10B981' : '#F59E0B' }} />
+                                <span style={{ color: webrtc.isConnected ? '#10B981' : '#F59E0B', fontSize: 11, fontWeight: 600 }}>
+                                    {webrtc.isConnected ? 'Voice Connected' : 'Connecting...'}
+                                </span>
+                            </div>
+                        )}
                         {activeCall.status === 'ringing' && (
                             <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
                                 style={{ width: 14, height: 14, borderRadius: '50%', background: '#10B981' }} />
@@ -343,7 +378,7 @@ export default function CallsPage() {
                                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
                             </button>
                             {callType === 'video' && (
-                                <button onClick={() => setIsCamOff(!isCamOff)} style={{
+                                <button onClick={() => { const newVal = !isCamOff; setIsCamOff(newVal); webrtc.toggleCamera(newVal); }} style={{
                                     width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
                                     background: isCamOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
