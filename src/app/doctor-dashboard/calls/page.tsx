@@ -119,12 +119,12 @@ export default function CallsPage() {
         return () => clearInterval(interval);
     }, [activeCall?.id]);
 
-    // Call timer
+    // Call timer — only count when voice is actually connected
     useEffect(() => {
-        if (!activeCall || activeCall.status !== 'ongoing') return;
+        if (!activeCall || activeCall.status !== 'ongoing' || !webrtc.isConnected) return;
         const interval = setInterval(() => setCallDuration(d => d + 1), 1000);
         return () => clearInterval(interval);
-    }, [activeCall?.status]);
+    }, [activeCall?.status, webrtc.isConnected]);
 
     const startCall = async (type: 'audio' | 'video') => {
         if (!doctor || !selectedPatient) return;

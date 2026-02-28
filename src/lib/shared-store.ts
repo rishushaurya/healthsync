@@ -203,3 +203,58 @@ export async function cloudGetPatientData(userId: string, doctorId?: string) {
         prescriptions: await cloudGetPatientPrescriptions(userId),
     };
 }
+
+// ---------- Cloud Reports ----------
+
+interface CloudReport {
+    id: string;
+    userId: string;
+    fileName: string;
+    uploadDate: string;
+    fileData?: string;
+    aiSummary: string;
+    technicalSummary?: string;
+    abnormalities?: string[];
+    recommendations?: string[];
+    urgencyLevel?: string;
+    fileType?: string;
+    sharedWith?: string[];
+    isValid?: boolean;
+    validationMessage?: string;
+}
+
+export async function cloudAddReport(report: CloudReport): Promise<void> {
+    const key = `hs_reports_${report.userId}`;
+    const existing = (await cloudGet<CloudReport[]>(key)) || [];
+    existing.push(report);
+    await cloudSet(key, existing);
+}
+
+export async function cloudGetReports(userId: string): Promise<CloudReport[]> {
+    return (await cloudGet<CloudReport[]>(`hs_reports_${userId}`)) || [];
+}
+
+export async function cloudGetReportsForDoctor(doctorId: string, patientIds: string[]): Promise<CloudReport[]> {
+    const allReports: CloudReport[] = [];
+    for (const pid of patientIds) {
+        const reports = await cloudGetReports(pid);
+        const shared = reports.filter(r => r.sharedWith?.includes(doctorId));
+        allReports.push(...shared);
+    }
+    return allReports;
+}
+
+export async function cloudShareReport(userId: string, reportId: string, doctorId: string): Promise<void> {
+    const key = `hs_reports_${userId}`;
+    const reports = (await cloudGet<CloudReport[]>(key)) || [];
+    const updated = reports.map(r => {
+        if (r.id === reportId) {
+            const shared = r.sharedWith || [];
+            if (!shared.includes(doctorId)) shared.push(doctorId);
+            return { ...r, sharedWith: shared };
+        }
+        return r;
+    });
+    await cloudSet(key, updated);
+}
+

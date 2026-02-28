@@ -53,10 +53,10 @@ export default function UserCallsPage() {
     }, [userId]);
 
     useEffect(() => {
-        if (!activeCall || activeCall.status !== 'ongoing') return;
+        if (!activeCall || activeCall.status !== 'ongoing' || !webrtc.isConnected) return;
         const interval = setInterval(() => setCallDuration(d => d + 1), 1000);
         return () => clearInterval(interval);
-    }, [activeCall?.status]);
+    }, [activeCall?.status, webrtc.isConnected]);
 
     const acceptCall = async () => {
         if (!activeCall) return;
@@ -147,9 +147,10 @@ export default function UserCallsPage() {
                     <motion.div initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -20, scale: 0.95 }}
                         style={{
                             position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
-                            padding: '24px 32px', borderRadius: 20, background: 'linear-gradient(135deg, #0B1120ee, #1a0b2eee)',
+                            padding: '20px 24px', borderRadius: 20, background: 'linear-gradient(135deg, #0B1120ee, #1a0b2eee)',
                             backdropFilter: 'blur(20px)', border: '1px solid rgba(14,165,233,0.3)',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minWidth: 320,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+                            width: 'calc(100% - 32px)', maxWidth: 360, boxSizing: 'border-box' as const,
                         }}>
                         <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                             <PhoneIncoming size={36} style={{ color: '#10B981' }} />

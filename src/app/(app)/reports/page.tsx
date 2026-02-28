@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, Brain, AlertTriangle, CheckCircle, XCircle, Loader2, Plus, ArrowRight, Stethoscope, X, Pill, Share2 } from 'lucide-react';
 import { getReports, addReport, generateId, getCurrentUser, getJourneys, addJourney, setJourneys, getAppointments, getDoctorAccounts, shareReportWithDoctor, autoShareReportsWithDoctor, type MedicalReport, type HealthJourney } from '@/lib/store';
+import { cloudAddReport, cloudShareReport } from '@/lib/shared-store';
 import { formatContextForAI, buildAIContext } from '@/lib/ai-context';
 import { useLanguage } from '@/lib/LanguageProvider';
 import Link from 'next/link';
@@ -20,6 +21,8 @@ interface AnalysisResult {
     medications?: string[];
     followUpTests?: string[];
     janAushadhiAlternatives?: string[];
+    isValidReport?: boolean;
+    validationMessage?: string;
 }
 
 export default function ReportsPage() {
@@ -81,7 +84,16 @@ export default function ReportsPage() {
             const data = await res.json();
 
             if (data.analysis) {
-                setAnalysis(data.analysis);
+                const analysisData = data.analysis;
+                // Check if AI flagged it as invalid
+                const isValid = analysisData.isValidReport !== false;
+                setAnalysis({ ...analysisData, isValidReport: isValid });
+
+                if (!isValid) {
+                    // AI says invalid report — don't save
+                    setAnalyzing(false);
+                    return;
+                }
 
                 // Save report to store
                 const report: MedicalReport = {
@@ -90,21 +102,26 @@ export default function ReportsPage() {
                     fileName: file.name,
                     uploadDate: new Date().toISOString(),
                     fileData: reportText.substring(0, 5000),
-                    aiSummary: data.analysis.laymanSummary || '',
-                    technicalSummary: data.analysis.technicalSummary || '',
-                    abnormalities: data.analysis.abnormalities || [],
-                    recommendations: data.analysis.recommendations || [],
-                    urgencyLevel: data.analysis.urgencyLevel || 'green',
+                    aiSummary: analysisData.laymanSummary || '',
+                    technicalSummary: analysisData.technicalSummary || '',
+                    abnormalities: analysisData.abnormalities || [],
+                    recommendations: analysisData.recommendations || [],
+                    urgencyLevel: analysisData.urgencyLevel || 'green',
                     fileType: file.type,
                     sharedWith: [],
                 };
                 addReport(report);
+                // Cloud sync for cross-device (doctor can see)
+                cloudAddReport(report).catch(() => { });
                 // Auto-share with appointed doctors
                 const user = getCurrentUser();
                 if (user) {
                     const apts = getAppointments();
                     const doctorIds = [...new Set(apts.map(a => a.doctorId))];
-                    doctorIds.forEach(did => autoShareReportsWithDoctor(user.id, did));
+                    doctorIds.forEach(did => {
+                        autoShareReportsWithDoctor(user.id, did);
+                        cloudShareReport(user.id, report.id, did).catch(() => { });
+                    });
                 }
                 setReportsList(getReports());
                 setActiveReport(report);
@@ -280,6 +297,22 @@ Include 6-10 timeline steps. Focus on Indian dietary preferences. Only valid JSO
             <AnimatePresence>
                 {analysis && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ marginBottom: 24 }}>
+                        {/* Invalid Report Warning */}
+                        {analysis.isValidReport === false && (
+                            <div style={{
+                                padding: '20px 24px', borderRadius: 14, marginBottom: 16,
+                                background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                                display: 'flex', alignItems: 'center', gap: 14,
+                            }}>
+                                <XCircle size={28} style={{ color: '#EF4444', flexShrink: 0 }} />
+                                <div>
+                                    <div style={{ fontWeight: 700, color: '#EF4444', fontSize: 16, marginBottom: 4 }}>Invalid Report</div>
+                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+                                        {analysis.validationMessage || 'This file does not appear to be a legitimate medical report. Please upload an actual medical report (lab results, imaging, prescriptions, etc).'}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* Urgency Banner */}
                         <div style={{
                             padding: '16px 24px', borderRadius: 14, marginBottom: 16,
@@ -456,6 +489,7 @@ Include 6-10 timeline steps. Focus on Indian dietary preferences. Only valid JSO
                                             const user = getCurrentUser();
                                             if (user) {
                                                 shareReportWithDoctor(user.id, report.id, doctorId);
+                                                cloudShareReport(user.id, report.id, doctorId).catch(() => { });
                                                 setReportsList(getReports());
                                             }
                                             e.target.value = '';

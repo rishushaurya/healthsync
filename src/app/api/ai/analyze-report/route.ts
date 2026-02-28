@@ -80,6 +80,14 @@ RULES:
             analysis = { laymanSummary: text, technicalSummary: text, abnormalities: [], recommendations: [], urgencyLevel: 'green' };
         }
 
+        // Map isFake to isValidReport for frontend
+        if (analysis.isFake === true) {
+            analysis.isValidReport = false;
+            analysis.validationMessage = analysis.laymanSummary || 'This does not appear to be a legitimate medical report.';
+        } else {
+            analysis.isValidReport = true;
+        }
+
         return NextResponse.json({ analysis });
     } catch (error) {
         console.error('Report Analysis Error:', error);
