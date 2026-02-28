@@ -95,7 +95,7 @@ export default function IncomingCallOverlay() {
                         left: '50%',
                         transform: 'translateX(-50%)',
                         zIndex: 9999,
-                        padding: '24px 32px',
+                        padding: '20px 24px',
                         borderRadius: 20,
                         background: 'linear-gradient(135deg, #0B1120ee, #1a0b2eee)',
                         backdropFilter: 'blur(20px)',
@@ -104,7 +104,9 @@ export default function IncomingCallOverlay() {
                         flexDirection: 'column',
                         alignItems: 'center',
                         gap: 16,
-                        minWidth: 320,
+                        width: 'calc(100% - 32px)',
+                        maxWidth: 360,
+                        boxSizing: 'border-box' as const,
                         boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
                     }}
                 >
