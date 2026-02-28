@@ -144,30 +144,49 @@ export default function UserCallsPage() {
 
             <AnimatePresence>
                 {activeCall && activeCall.status === 'ringing' && (
-                    <motion.div initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -30 }}
+                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                         style={{
-                            position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
-                            padding: '20px 24px', borderRadius: 20, background: 'linear-gradient(135deg, #0B1120ee, #1a0b2eee)',
-                            backdropFilter: 'blur(20px)', border: '1px solid rgba(14,165,233,0.3)',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-                            width: 'calc(100% - 32px)', maxWidth: 360, boxSizing: 'border-box' as const,
+                            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+                            padding: 16, display: 'flex', justifyContent: 'center',
                         }}>
-                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                            <PhoneIncoming size={36} style={{ color: '#10B981' }} />
-                        </motion.div>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>Incoming {activeCall.type === 'video' ? 'Video' : 'Audio'} Call</div>
-                            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{activeCall.doctorName}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 16, position: 'relative', zIndex: 10000 }}>
-                            <button onClick={rejectCall} style={{
-                                width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}><PhoneOff size={22} /></button>
-                            <button onClick={acceptCall} style={{
-                                width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}><Phone size={22} /></button>
+                        <div style={{
+                            width: '100%', maxWidth: 420, padding: '20px 24px', borderRadius: 20,
+                            background: 'linear-gradient(135deg, #0B1120f5, #1a0b2ef5)',
+                            backdropFilter: 'blur(24px)', border: '1px solid rgba(14,165,233,0.4)',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14,165,233,0.15)',
+                            display: 'flex', alignItems: 'center', gap: 16,
+                        }}>
+                            <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
+                                style={{
+                                    width: 52, height: 52, borderRadius: 16, flexShrink: 0,
+                                    background: activeCall.type === 'video'
+                                        ? 'linear-gradient(135deg, #8B5CF6, #6366F1)'
+                                        : 'linear-gradient(135deg, #10B981, #0EA5E9)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                <PhoneIncoming size={24} style={{ color: 'white' }} />
+                            </motion.div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {activeCall.doctorName}
+                                </div>
+                                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                                    Incoming {activeCall.type === 'video' ? 'Video' : 'Audio'} Call
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                                <button onClick={rejectCall} style={{
+                                    width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                                    background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                                }}><PhoneOff size={20} /></button>
+                                <button onClick={acceptCall} style={{
+                                    width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                                    background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(16,185,129,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                                }}><Phone size={20} /></button>
+                            </div>
                         </div>
                     </motion.div>
                 )}

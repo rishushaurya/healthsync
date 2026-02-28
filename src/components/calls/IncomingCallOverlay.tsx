@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, PhoneIncoming } from 'lucide-react';
+import { Phone, PhoneOff, PhoneIncoming, Video } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { getCurrentUser, generateId, type CallLog } from '@/lib/store';
 import { cloudGetActiveCall, cloudUpdateCallLog, cloudAddNotification } from '@/lib/shared-store';
@@ -15,129 +15,142 @@ export default function IncomingCallOverlay() {
 
     useEffect(() => {
         const user = getCurrentUser();
-        if (user) {
-            setUserId(user.id);
-        }
+        if (user) setUserId(user.id);
     }, []);
 
     useEffect(() => {
         if (!userId) return;
-
         const interval = setInterval(async () => {
             const call = await cloudGetActiveCall();
-            // If there's an active ringing call for this user
             if (call && call.userId === userId && call.status === 'ringing') {
                 setActiveCall(call);
             } else {
                 setActiveCall(null);
             }
         }, 1500);
-
         return () => clearInterval(interval);
     }, [userId]);
 
     const acceptCall = async () => {
         if (!activeCall) return;
-
-        // Update the call status to ongoing
         await cloudUpdateCallLog(activeCall.id, { status: 'ongoing' });
-
         await cloudAddNotification({
-            id: generateId(),
-            userId,
-            type: 'call',
+            id: generateId(), userId, type: 'call',
             title: `${activeCall.type === 'video' ? 'Video' : 'Audio'} Call Started`,
             message: `Connected with ${activeCall.doctorName}`,
-            timestamp: new Date().toISOString(),
-            read: false,
+            timestamp: new Date().toISOString(), read: false,
         });
-
         setActiveCall(null);
-
-        // Redirect to the calls page to handle the ongoing call UI
-        if (pathname !== '/calls') {
-            router.push('/calls');
-        }
+        if (pathname !== '/calls') router.push('/calls');
     };
 
     const rejectCall = async () => {
         if (!activeCall) return;
-
         await cloudUpdateCallLog(activeCall.id, { status: 'missed', endTime: new Date().toISOString() });
-
         await cloudAddNotification({
-            id: generateId(),
-            userId,
-            type: 'call',
+            id: generateId(), userId, type: 'call',
             title: 'Missed Call',
             message: `Missed call from ${activeCall.doctorName}`,
-            timestamp: new Date().toISOString(),
-            read: false,
+            timestamp: new Date().toISOString(), read: false,
         });
-
         setActiveCall(null);
     };
 
-    // Don't show the global overlay if we are already on the calls page,
-    // because the calls page handles its own ringing UI to prevent duplicate overlays.
+    // Don't show overlay if already on calls page (it has its own UI)
     if (pathname === '/calls') return null;
 
     return (
         <AnimatePresence>
             {activeCall && activeCall.status === 'ringing' && (
                 <motion.div
-                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    initial={{ opacity: 0, y: -30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -30 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                     style={{
                         position: 'fixed',
-                        top: 20,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        zIndex: 9999,
-                        padding: '20px 24px',
-                        borderRadius: 20,
-                        background: 'linear-gradient(135deg, #0B1120ee, #1a0b2eee)',
-                        backdropFilter: 'blur(20px)',
-                        border: '1px solid rgba(14,165,233,0.3)',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 99999,
+                        padding: '16px',
                         display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 16,
-                        width: 'calc(100% - 32px)',
-                        maxWidth: 360,
-                        boxSizing: 'border-box' as const,
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                        justifyContent: 'center',
                     }}
                 >
-                    <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                        <PhoneIncoming size={36} style={{ color: '#10B981' }} />
-                    </motion.div>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: 420,
+                        padding: '20px 24px',
+                        borderRadius: 20,
+                        background: 'linear-gradient(135deg, #0B1120f5, #1a0b2ef5)',
+                        backdropFilter: 'blur(24px)',
+                        border: '1px solid rgba(14,165,233,0.4)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14,165,233,0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 16,
+                    }}>
+                        {/* Left: Pulsing icon */}
+                        <motion.div
+                            animate={{ scale: [1, 1.15, 1] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                            style={{
+                                width: 52, height: 52, borderRadius: 16,
+                                background: activeCall.type === 'video'
+                                    ? 'linear-gradient(135deg, #8B5CF6, #6366F1)'
+                                    : 'linear-gradient(135deg, #10B981, #0EA5E9)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                            }}
+                        >
+                            {activeCall.type === 'video'
+                                ? <Video size={24} style={{ color: 'white' }} />
+                                : <PhoneIncoming size={24} style={{ color: 'white' }} />
+                            }
+                        </motion.div>
 
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
-                            Incoming {activeCall.type === 'video' ? 'Video' : 'Audio'} Call
+                        {/* Center: Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {activeCall.doctorName}
+                            </div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                                Incoming {activeCall.type === 'video' ? 'Video' : 'Audio'} Call
+                            </div>
                         </div>
-                        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-                            {activeCall.doctorName}
-                        </div>
-                    </div>
 
-                    <div style={{ display: 'flex', gap: 16, position: 'relative', zIndex: 10000 }}>
-                        <button onClick={rejectCall} style={{
-                            width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                            background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
-                        }}>
-                            <PhoneOff size={22} />
-                        </button>
-                        <button onClick={acceptCall} style={{
-                            width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                            background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
-                        }}>
-                            <Phone size={22} />
-                        </button>
+                        {/* Right: Action buttons */}
+                        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); rejectCall(); }}
+                                style={{
+                                    width: 48, height: 48, borderRadius: '50%',
+                                    border: 'none', cursor: 'pointer',
+                                    background: '#EF4444', color: 'white',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+                                    WebkitTapHighlightColor: 'transparent',
+                                    touchAction: 'manipulation',
+                                }}
+                            >
+                                <PhoneOff size={20} />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); acceptCall(); }}
+                                style={{
+                                    width: 48, height: 48, borderRadius: '50%',
+                                    border: 'none', cursor: 'pointer',
+                                    background: '#10B981', color: 'white',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(16,185,129,0.4)',
+                                    WebkitTapHighlightColor: 'transparent',
+                                    touchAction: 'manipulation',
+                                }}
+                            >
+                                <Phone size={20} />
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
             )}
