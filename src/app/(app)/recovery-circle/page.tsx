@@ -53,10 +53,10 @@ export default function RecoveryCirclePage() {
             {/* Stats Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
                 {[
-                    { icon: TrendingUp, label: 'Health Score', value: `${healthScore}/100`, color: healthScore >= 70 ? '#10B981' : '#F59E0B' },
-                    { icon: Trophy, label: 'Journeys Completed', value: `${completedJourneys.length}`, color: '#8B5CF6' },
-                    { icon: Activity, label: 'Active Progress', value: activeJourney ? `${activeJourney.progress}%` : 'None', color: '#0EA5E9' },
-                    { icon: Heart, label: 'Vitals Logged', value: `${vitals.length}`, color: '#EF4444' },
+                    { icon: TrendingUp, label: 'Health Score', value: `${healthScore}/100`, color: healthScore >= 70 ? '#059669' : '#D97706' },
+                    { icon: Trophy, label: 'Journeys Completed', value: `${completedJourneys.length}`, color: '#4F6B8A' },
+                    { icon: Activity, label: 'Active Progress', value: activeJourney ? `${activeJourney.progress}%` : 'None', color: '#0E7490' },
+                    { icon: Heart, label: 'Vitals Logged', value: `${vitals.length}`, color: '#DC2626' },
                 ].map((stat, i) => {
                     const Icon = stat.icon;
                     return (
@@ -143,12 +143,12 @@ export default function RecoveryCirclePage() {
                     ].map((milestone, i) => (
                         <div key={i} style={{
                             padding: 16, borderRadius: 12, textAlign: 'center',
-                            background: milestone.unlocked ? 'rgba(16, 185, 129, 0.06)' : 'rgba(128,128,128,0.04)',
-                            border: `1px solid ${milestone.unlocked ? 'rgba(16, 185, 129, 0.15)' : 'var(--border-color)'}`,
+                            background: milestone.unlocked ? 'rgba(5, 150, 105, 0.06)' : 'rgba(128,128,128,0.04)',
+                            border: `1px solid ${milestone.unlocked ? 'rgba(5, 150, 105, 0.15)' : 'var(--border-color)'}`,
                             opacity: milestone.unlocked ? 1 : 0.5,
                         }}>
                             <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><milestone.Icon size={24} style={{ color: milestone.unlocked ? 'var(--color-primary)' : 'var(--text-muted)' }} /></div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: milestone.unlocked ? '#10B981' : 'var(--text-muted)' }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: milestone.unlocked ? '#059669' : 'var(--text-muted)' }}>
                                 {milestone.label}
                             </div>
                             {milestone.unlocked && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Unlocked</div>}

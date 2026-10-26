@@ -35,6 +35,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 **NEXT AI SHOULD:** [Explicit actionable next steps]
 ```
 
+## [2026-10-26 19:30] — Claude Code — Session 07 (Merge rishushaurya/healthsync, clinical redesign, real care pipeline, anatomy Digital Twin)
+
+**Feature/Issue:** Merge the two diverged HealthSync codebases into one, replace the AI-styled UI with a clinical design, and make the patient–doctor workflow (user's hand-drawn architecture) work for real instead of simulated steps.
+**Status:** Completed on branch `merge/unified-healthsync` (not pushed)
+**Chunks / Modules Modified:** Store & sync, journey pages, doctor portal, AI routes, design system, Digital Twin
+
+**Workflow implemented (source of truth):** sign in → reason → history (Allopathic/AYUSH, questions adapt to sex/age) → MediKiosk *or* Digital Twin → AI explanation + recommended specialist → book (online or clinic) → optional reports (real AI reading, shared with the doctor) → consultation with recording consent from both sides → AI-drafted care plan (medicine clock times, diet, exercise) → doctor edits and signs → patient sees plan, prescription, medicines in cart → daily check-ins → recovery rate visible to patient and doctor.
+
+**Frontend changes:**
+- New design system in `globals.css` (teal clinical palette, Figtree + Noto Sans incl. Indic scripts via `next/font`, no gradients/glass); all legacy class names kept.
+- New landing page, auth (gender/age, visible labels, `?role=doctor`), sidebars (Digital Twin in nav), journey stepper.
+- Rewritten: intake, MediKiosk result + booking, booking, reports, consultation, care-plan (replaces simulated ai-analysis/draft-plan/doctor-approval/timeline), patient home with daily check-in + AI insights, doctor dashboard, doctor case review/approval.
+- Digital Twin: original component restored verbatim + female/male reference anatomy (`components/three/AnatomyTwin.tsx`), symptoms saved and synced, "Find the right doctor".
+
+**Backend/API/Store changes:**
+- `store.ts` mirrors every `hs_`/`healthsync_` key to `/api/store`; `SyncGate` hydrates on load → doctor and patient devices share data.
+- `/api/store`: key allowlist, `?all=1`, in-memory fallback when `UPSTASH_*` unset.
+- `lib/care-plan.ts`: `createCarePlanDraft` / `approveCarePlan`. `hooks/useLiveTranscript.ts`: consented transcription per side.
+- `/api/ai/prescription`: transcript-based drafting, retired Groq model replaced, rule against invented findings. `/api/ai/summarize-intake`: explanation + recommended specialty. `/api/ai/analyze-report`: `isValidReport`.
+- AYUSH doctor accounts doc19–doc25 added.
+
+**Dependencies / Tooling:** `@upstash/redis` (optional). Anatomy streamed from jsDelivr (Human-Atlas @5bb5713, MIT; BodyParts3D © DBCLS and HuBMAP female reference, CC BY 4.0). `node scripts/check-regions.mts` verifies click→region mapping on both bodies.
+
+**Testing & Verification:** `tsc --noEmit` clean; region check passes; browser run of full flow (booking → consent → draft → approval → plan, cart ₹8 Paracetamol, check-in → 85% on doctor dashboard); all patient, doctor and portal pages render without console errors.
+**Known Issues / Pending Work:** WebRTC audio/video and live transcription need two real devices with microphones (not testable in the preview browser). Anatomy is ~30 MB per body on first load. In-memory store resets on server restart (set Upstash for deploys).
+**NEXT AI SHOULD:** Test a real call between two devices; vendor the anatomy files into `/public/models` if offline demos are needed; consider auth on `/api/store` before production.
+
+---
+
 ## [2026-10-18 23:25] — Antigravity AI Engine — Session 06 (GitHub Remote Sync, Clean Secret Purge & Policy Report Integration)
 
 **Feature/Issue:** Finalize and stage complete codebase transition, purge placeholder credentials, ignore browser artifacts, generate production commit `b84a10d`, and push upstream to GitHub repository (`origin/main`).  

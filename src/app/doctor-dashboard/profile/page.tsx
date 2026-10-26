@@ -67,7 +67,8 @@ export default function DoctorProfilePage() {
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                         <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-secondary)', overflow: 'hidden', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                            {profile.image || doctor?.image?.startsWith('data:image') || doctor?.image?.startsWith('http') ? (
+                            {/^(data:image|https?:)/.test(String(profile.image || doctor?.image || '')) ? (
+                                // image may also hold initials like "AP" — only render real image sources
                                 <img src={(profile.image as string) || doctor?.image} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                                 <User size={24} />
@@ -127,7 +128,7 @@ export default function DoctorProfilePage() {
                         </h3>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                             {((profile.qualifications as string[]) || []).map((q, i) => (
-                                <span key={i} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(14,165,233,0.08)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span key={i} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(14, 116, 144,0.08)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     {q} <button onClick={() => removeQualification(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', padding: 0 }}><X size={10} /></button>
                                 </span>
                             ))}
@@ -151,7 +152,7 @@ export default function DoctorProfilePage() {
                 </button>
                 {saved && (
                     <motion.span initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                        style={{ color: '#10B981', fontWeight: 600, fontSize: 13 }}>Profile saved!</motion.span>
+                        style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>Profile saved!</motion.span>
                 )}
             </div>
         </div>

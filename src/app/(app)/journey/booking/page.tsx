@@ -1,196 +1,189 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Calendar, Search, Star, Clock, MapPin, X, CheckCircle, ArrowRight } from 'lucide-react';
-import { getActiveJourney, getCurrentUser, saveJourney, JourneyStep, addAppointment, generateId, type PatientJourney } from '@/lib/store';
+import { Search, Star, Clock, MapPin, Video, Building2, CheckCircle2, ArrowRight, BadgeCheck } from 'lucide-react';
+import {
+    getActiveJourney, getCurrentUser, saveJourney, addAppointment, addNotification, autoShareReportsWithDoctor, generateId,
+    JourneyStep, type PatientJourney,
+} from '@/lib/store';
 import { PLATFORM_DOCTORS } from '@/lib/data';
 
-const doctors = PLATFORM_DOCTORS;
+type Doctor = typeof PLATFORM_DOCTORS[number];
+
+const nextDays = () => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return d.toISOString().split('T')[0];
+});
+const dayLabel = (iso: string, i: number) => i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 
 export default function JourneyBookingPage() {
     const router = useRouter();
     const [journey, setJourney] = useState<PatientJourney | null>(null);
     const [search, setSearch] = useState('');
-    const [showBooking, setShowBooking] = useState<string | null>(null);
-    const [selectedDate, setSelectedDate] = useState('');
-    const [selectedTime, setSelectedTime] = useState('');
-    const [bookingSuccess, setBookingSuccess] = useState(false);
+    const [selected, setSelected] = useState<Doctor | null>(null);
+    const [mode, setMode] = useState<'Online' | 'Physical'>('Online');
+    const [date, setDate] = useState(nextDays()[0]);
+    const [time, setTime] = useState('');
+    const [booked, setBooked] = useState(false);
+
+    const choose = (d: Doctor) => {
+        setSelected(d);
+        setMode(d.modes.includes('Online') ? 'Online' : 'Physical');
+        setTime('');
+    };
 
     useEffect(() => {
         const user = getCurrentUser();
-        if (!user) {
-            router.push('/auth');
-            return;
-        }
+        if (!user) { router.push('/auth'); return; }
         const j = getActiveJourney(user.id);
-        if (!j) {
-            router.push('/auth');
-            return;
-        }
+        if (!j) { router.push('/auth'); return; }
         setJourney(j);
-        
-        // Use AI pathway logic to auto-suggest a specialty based on intake/pathway
-        if (j.pathway === 'Chronic Care') setSearch('Endocrinology');
-        else if (j.pathway === 'Mental Health') setSearch('Psychiatry');
+        const preselect = PLATFORM_DOCTORS.find(d => d.id === new URLSearchParams(window.location.search).get('doctor'));
+        if (preselect) choose(preselect);
     }, [router]);
-
-    const filtered = doctors.filter(d => {
-        const matchesSearch = d.name.toLowerCase().includes(search.toLowerCase()) || 
-                              d.specialty.toLowerCase().includes(search.toLowerCase());
-        return matchesSearch;
-    });
-
-    const getNextDays = () => {
-        const days: string[] = [];
-        for (let i = 1; i <= 7; i++) {
-            const d = new Date();
-            d.setDate(d.getDate() + i);
-            days.push(d.toISOString().split('T')[0]);
-        }
-        return days;
-    };
-
-    const handleBook = () => {
-        const doctor = doctors.find(d => d.id === showBooking);
-        if (!doctor || !selectedDate || !selectedTime || !journey) return;
-
-        const appointmentId = generateId();
-
-        // 1. Create the appointment
-        addAppointment({
-            id: appointmentId,
-            userId: journey.userId,
-            doctorId: doctor.id,
-            doctorName: doctor.name,
-            specialty: doctor.specialty,
-            date: selectedDate,
-            time: selectedTime,
-            status: 'booked',
-            location: 'Online Video Call',
-            notes: 'Journey Consultation',
-        });
-
-        // 2. Update the journey
-        const updated = { 
-            ...journey, 
-            currentStep: JourneyStep.CONSULTATION, 
-            doctorId: doctor.id,
-            appointmentId: appointmentId,
-            updatedAt: new Date().toISOString() 
-        };
-        saveJourney(updated);
-
-        setBookingSuccess(true);
-        setTimeout(() => {
-            router.push('/journey/consultation');
-        }, 2000);
-    };
 
     if (!journey) return null;
 
+    const ayush = journey.pathway === 'AYUSH';
+    const q = search.toLowerCase();
+    const doctors = PLATFORM_DOCTORS
+        .filter(d => (d.type === 'Allopathic') !== ayush)
+        .filter(d => !q || d.name.toLowerCase().includes(q) || d.specialty.toLowerCase().includes(q))
+        // Recommended specialty first
+        .sort((a, b) => Number(b.specialty === journey.recommendedSpecialty) - Number(a.specialty === journey.recommendedSpecialty) || b.rating - a.rating);
+
+    const handleBook = () => {
+        const user = getCurrentUser();
+        if (!selected || !time || !user) return;
+        const appointmentId = generateId();
+        addAppointment({
+            id: appointmentId, userId: user.id, doctorId: selected.id, doctorName: selected.name, specialty: selected.specialty,
+            date, time, status: 'booked',
+            location: mode === 'Online' ? 'Online video consultation' : `${selected.hospital} (in person)`,
+            notes: journey.reasonForVisit || 'Journey consultation',
+        });
+        addNotification({
+            id: generateId(), userId: user.id, type: 'appointment', title: 'Appointment booked',
+            message: `${mode} consultation with ${selected.name} on ${date} at ${time}.`,
+            timestamp: new Date().toISOString(), read: false, link: '/journey/consultation',
+        });
+        // Doctor sees the patient's existing reports before the visit
+        autoShareReportsWithDoctor(user.id, selected.id);
+        saveJourney({
+            ...journey, doctorId: selected.id, appointmentId, consultationMode: mode,
+            currentStep: JourneyStep.REPORTS, updatedAt: new Date().toISOString(),
+        });
+        setBooked(true);
+        setTimeout(() => router.push('/journey/reports'), 1200);
+    };
+
+    if (booked && selected) {
+        return (
+            <div className="card" role="status" style={{ maxWidth: 520, margin: '40px auto', padding: 32, textAlign: 'center' }}>
+                <CheckCircle2 size={48} color="var(--color-accent)" style={{ margin: '0 auto 12px' }} />
+                <h1 style={{ fontSize: 22, fontWeight: 800 }}>Appointment booked</h1>
+                <p style={{ color: 'var(--text-secondary)', marginTop: 6 }}>{mode} with {selected.name} · {date} at {time}</p>
+            </div>
+        );
+    }
+
     return (
-        <div style={{ maxWidth: 800, margin: '0 auto', padding: 24, paddingBottom: 100 }}>
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>Book a Doctor</h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Based on your intake, we suggest the following specialists. Select a doctor to begin your consultation.
-                </p>
-            </div>
+        <div style={{ maxWidth: 980, margin: '0 auto' }}>
+            <h1 className="page-title">Choose your doctor</h1>
+            <p className="page-subtitle">
+                {journey.recommendedSpecialty
+                    ? <>Based on your assessment we recommend a <strong>{journey.recommendedSpecialty}</strong>. They’re listed first.</>
+                    : 'Pick a doctor, then a time that suits you.'}
+            </p>
 
-            <div style={{ position: 'relative', marginBottom: 24 }}>
-                <Search size={18} style={{ position: 'absolute', left: 14, top: 16, color: 'var(--text-muted)' }} />
-                <input 
-                    className="input-field" 
-                    style={{ paddingLeft: 42, width: '100%' }} 
-                    placeholder="Search by name or specialty..." 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)} 
-                />
-            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginTop: 20, alignItems: 'start' }}>
+                <section>
+                    <div style={{ position: 'relative', marginBottom: 14 }}>
+                        <Search size={18} style={{ position: 'absolute', left: 14, top: 13, color: 'var(--text-muted)' }} />
+                        <label htmlFor="doc-search" className="sr-only">Search doctors</label>
+                        <input id="doc-search" className="input-field" style={{ paddingLeft: 42 }} placeholder="Search by name or specialty" value={search} onChange={e => setSearch(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        {doctors.map(d => {
+                            const rec = d.specialty === journey.recommendedSpecialty;
+                            const active = selected?.id === d.id;
+                            return (
+                                <button key={d.id} onClick={() => choose(d)} aria-pressed={active} className="glass-card" style={{
+                                    padding: 16, display: 'flex', gap: 14, alignItems: 'center', textAlign: 'left', font: 'inherit', color: 'inherit',
+                                    borderColor: active ? 'var(--color-primary)' : undefined, boxShadow: active ? '0 0 0 2px var(--primary-soft)' : undefined,
+                                }}>
+                                    <span style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--color-primary)', display: 'grid', placeItems: 'center', fontWeight: 700, flexShrink: 0 }}>{d.initials}</span>
+                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                        <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <strong>{d.name}</strong>
+                                            {rec && <span className="status-badge status-active"><BadgeCheck size={13} /> Recommended</span>}
+                                        </span>
+                                        <span style={{ display: 'block', fontSize: 14, color: 'var(--text-secondary)' }}>{d.specialty} · {d.hospital}</span>
+                                        <span style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                                            <span><Star size={12} color="#D97706" fill="#D97706" /> {d.rating}</span>
+                                            <span><Clock size={12} /> {d.experience}</span>
+                                            <span>{d.fee}</span>
+                                        </span>
+                                    </span>
+                                </button>
+                            );
+                        })}
+                        {doctors.length === 0 && <p style={{ color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>No doctors match “{search}”.</p>}
+                    </div>
+                </section>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-                {filtered.slice(0, 5).map((doc, i) => (
-                    <motion.div
-                        key={doc.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="glass-card"
-                        style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}
-                    >
-                        <div style={{ display: 'flex', gap: 14 }}>
-                            <div style={{
-                                width: 48, height: 48, borderRadius: 12,
-                                background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                flexShrink: 0, color: 'white', fontWeight: 700, fontSize: 16,
-                            }}>
-                                {doc.initials}
-                            </div>
+                <section className="card" style={{ padding: 22, position: 'sticky', top: 20 }} aria-label="Appointment details">
+                    {!selected ? (
+                        <p style={{ color: 'var(--text-secondary)' }}>Select a doctor to see available times.</p>
+                    ) : (
+                        <div style={{ display: 'grid', gap: 18 }}>
                             <div>
-                                <h3 style={{ fontWeight: 700, fontSize: 16 }}>{doc.name}</h3>
-                                <div style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 600 }}>{doc.specialty}</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Star size={12} color="#F59E0B" fill="#F59E0B" /> {doc.rating}</span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {doc.experience}</span>
-                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 17 }}>{selected.name}</div>
+                                <div style={{ fontSize: 14, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}><MapPin size={14} /> {selected.hospital}</div>
                             </div>
-                        </div>
-
-                        <button onClick={() => { setShowBooking(doc.id); setSelectedDate(getNextDays()[0]); setSelectedTime(doc.available[0] || '10:00 AM'); }} className="btn-primary" style={{ padding: '10px 20px', fontSize: 14 }}>
-                            Book & Consult
-                        </button>
-                    </motion.div>
-                ))}
-                {filtered.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                        No doctors found matching "{search}".
-                    </div>
-                )}
-            </div>
-
-            {/* Quick Booking Modal */}
-            <AnimatePresence>
-                {showBooking && (
-                    <div style={{
-                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        zIndex: 1001, padding: 20, backdropFilter: 'blur(4px)',
-                    }}>
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="glass-card-static"
-                            style={{ padding: 32, width: '100%', maxWidth: 400, textAlign: 'center' }}
-                        >
-                            {bookingSuccess ? (
-                                <div>
-                                    <CheckCircle size={56} style={{ color: '#10B981', margin: '0 auto 16px' }} />
-                                    <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Booking Confirmed!</h2>
-                                    <p style={{ color: 'var(--text-secondary)' }}>Preparing your consultation room...</p>
+                            <fieldset style={{ border: 0 }}>
+                                <legend className="field-label">How would you like to meet?</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                    {(['Online', 'Physical'] as const).map(m => {
+                                        const offered = selected.modes.includes(m);
+                                        return (
+                                            <button key={m} type="button" disabled={!offered} aria-pressed={mode === m} onClick={() => setMode(m)}
+                                                className={mode === m ? 'btn-primary' : 'btn-secondary'} style={{ padding: '10px 12px', fontSize: 14 }}>
+                                                {m === 'Online' ? <Video size={16} /> : <Building2 size={16} />} {m === 'Online' ? 'Video call' : 'At clinic'}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            ) : (
-                                <>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                                        <h2 style={{ fontSize: 20, fontWeight: 700 }}>Confirm Appointment</h2>
-                                        <button onClick={() => setShowBooking(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                            <X size={20} />
+                            </fieldset>
+                            <fieldset style={{ border: 0 }}>
+                                <legend className="field-label">Day</legend>
+                                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                                    {nextDays().map((d, i) => (
+                                        <button key={d} type="button" aria-pressed={date === d} onClick={() => setDate(d)}
+                                            className={date === d ? 'btn-primary' : 'btn-secondary'} style={{ padding: '8px 12px', fontSize: 13.5, whiteSpace: 'nowrap', minHeight: 40 }}>
+                                            {dayLabel(d, i)}
                                         </button>
-                                    </div>
-                                    <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-                                        Book an online consultation with <strong>{doctors.find(d => d.id === showBooking)?.name}</strong> for {selectedDate} at {selectedTime}?
-                                    </p>
-                                    <button onClick={handleBook} className="btn-primary" style={{ width: '100%', padding: '14px', fontSize: 16 }}>
-                                        Confirm & Enter Waiting Room
-                                    </button>
-                                </>
-                            )}
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                                    ))}
+                                </div>
+                            </fieldset>
+                            <fieldset style={{ border: 0 }}>
+                                <legend className="field-label">Time</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8 }}>
+                                    {selected.available.map(t => (
+                                        <button key={t} type="button" aria-pressed={time === t} onClick={() => setTime(t)}
+                                            className={time === t ? 'btn-primary' : 'btn-secondary'} style={{ padding: '8px 10px', fontSize: 13.5, minHeight: 40 }}>{t}</button>
+                                    ))}
+                                </div>
+                            </fieldset>
+                            <button onClick={handleBook} className="btn-primary" disabled={!time}>
+                                Book {mode === 'Online' ? 'video consultation' : 'clinic visit'} · {selected.fee} <ArrowRight size={18} />
+                            </button>
+                        </div>
+                    )}
+                </section>
+            </div>
         </div>
     );
 }

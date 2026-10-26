@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Settings, Sun, Moon, Droplets, Sparkles, Leaf, Flame, Download
+    Settings, Sun, Moon, Droplets, Contrast, Leaf, Flame, Download
 } from 'lucide-react';
 import { getCurrentDoctor, getDoctorTheme, setDoctorTheme, type DoctorAccount } from '@/lib/store';
 
@@ -13,7 +13,7 @@ const themes = [
     { value: 'nature', label: 'Nature Green', icon: Leaf, preview: '#F0FDF4' },
     { value: 'warm', label: 'Warm Wellness', icon: Flame, preview: '#FFFBF5' },
     { value: 'calm-blue', label: 'Calm Blue', icon: Droplets, preview: '#0C1425' },
-    { value: 'gradient', label: 'Modern Gradient', icon: Sparkles, preview: '#0F0720' },
+    { value: 'gradient', label: 'High Contrast', icon: Contrast, preview: '#FFFFFF' },
 ];
 
 export default function DoctorSettingsPage() {
@@ -52,7 +52,7 @@ export default function DoctorSettingsPage() {
                             <motion.button key={t.value} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                                 onClick={() => handleThemeChange(t.value)} style={{
                                     padding: 16, borderRadius: 12, cursor: 'pointer', textAlign: 'center',
-                                    background: active ? 'rgba(14,165,233,0.1)' : 'var(--bg-card)',
+                                    background: active ? 'rgba(14, 116, 144,0.1)' : 'var(--bg-card)',
                                     border: active ? '2px solid var(--color-primary)' : '1px solid var(--border-color)',
                                     color: 'var(--text-primary)', transition: 'all 0.2s ease',
                                 }}>

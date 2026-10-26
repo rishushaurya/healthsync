@@ -3,106 +3,91 @@ import { NextRequest, NextResponse } from 'next/server';
 const GROQ_KEYS = [
     process.env.GROQ_API_KEY_1 || '',
     process.env.GROQ_API_KEY_2 || '',
-];
+].filter(Boolean);
 
-async function callGroq(messages: { role: string; content: string }[], systemPrompt: string, keyIndex = 0): Promise<string> {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${GROQ_KEYS[keyIndex]}`,
-        },
-        body: JSON.stringify({
-            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...messages,
-            ],
-            temperature: 0.4,
-            max_completion_tokens: 3000,
-        }),
-    });
+// Same model list as the other AI routes (the previous llama-4-scout model was retired by Groq)
+const GROQ_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
 
-    const data = await response.json();
-
-    if (data.error && keyIndex === 0) {
-        return callGroq(messages, systemPrompt, 1);
+async function callGroq(messages: { role: string; content: string }[], systemPrompt: string): Promise<string> {
+    let lastError = 'Groq API error';
+    for (const model of GROQ_MODELS) {
+        for (const key of GROQ_KEYS) {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({
+                    model,
+                    messages: [{ role: 'system', content: systemPrompt }, ...messages],
+                    temperature: 0.4,
+                    max_completion_tokens: 3000,
+                }),
+            });
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content;
+            if (!data.error && content) return content;
+            lastError = data.error?.message || lastError;
+        }
     }
-    if (data.error) {
-        throw new Error(data.error.message || 'Groq API error');
-    }
-    return data.choices?.[0]?.message?.content || '';
+    throw new Error(lastError);
 }
 
-const PRESCRIPTION_SYSTEM_PROMPT = `You are an AI medical assistant that helps doctors generate prescriptions after a teleconsultation call.
+const PRESCRIPTION_SYSTEM_PROMPT = `You are an AI medical scribe. You draft a care plan from a doctor–patient consultation for the doctor to review, edit and sign. Nothing reaches the patient until the doctor approves it.
 
-Based on the consultation context provided, generate a COMPLETE prescription in the following strict JSON format. Do NOT include any text outside the JSON block.
-
-RESPOND ONLY WITH VALID JSON — no markdown, no explanation, no backticks. Just the raw JSON object.
-
-JSON Format:
+RESPOND ONLY WITH VALID JSON — no markdown, no explanation, no backticks. Just the raw JSON object:
 {
-  "diagnosis": "Brief diagnosis based on the consultation",
+  "summary": "3-5 sentence clinical summary of the consultation for the doctor",
+  "diagnosis": "Working diagnosis as discussed",
   "medicines": [
-    {
-      "name": "Medicine Name",
-      "dosage": "e.g. 500mg",
-      "frequency": "e.g. Twice daily",
-      "duration": "e.g. 7 days",
-      "notes": "e.g. After meals"
-    }
+    { "name": "Generic name", "dosage": "e.g. 500 mg", "frequency": "with clock times, e.g. Twice daily — 8 AM and 8 PM", "duration": "e.g. 5 days", "notes": "e.g. After food" }
   ],
-  "advice": "General health advice, diet recommendations, lifestyle changes, and recovery plan. Include both Hindi and English advice if the language preference is Hindi.",
+  "diet": "Specific diet guidance for this condition: what to eat, what to avoid",
+  "exercise": "Exercise and activity guidance, including what to avoid and when to resume normal activity",
+  "advice": "Other instructions and warning signs that need urgent care",
   "followUpDays": 7
 }
 
 RULES:
-1. Always include 2-5 medicines that are commonly prescribed for the diagnosis.
-2. Prefer generic medicine names and mention brand alternatives in notes.
-3. Include Jan Aushadhi (Indian generic pharmacy) alternatives where possible.
-4. The advice section should include: diet plan, exercise recommendations, things to avoid, and recovery timeline.
-5. If the language is Hindi, write advice in both Hindi (Devanagari) and English.
-6. Be medically accurate but remember this is for demonstration purposes.
-7. The followUpDays should be a reasonable number (7, 14, 21, or 30).`;
+1. Use the medicines, doses and instructions the doctor actually says in the transcript. Only if the transcript has none, suggest commonly used generics and start their notes with "AI suggestion — confirm".
+2. Prefer generic names; mention Jan Aushadhi availability in notes where relevant.
+3. Every medicine must have clock times in "frequency" so the patient knows when to take it.
+4. If the language preference is Hindi, write diet, exercise and advice in Hindi (Devanagari) followed by English.
+5. followUpDays must be 3, 7, 14, 21 or 30.
+6. Never invent findings: no vitals, examination results, test values or history that are not in the transcript or record. If something was not captured, say "not recorded".`;
 
 export async function POST(request: NextRequest) {
     try {
-        const { doctorName, doctorSpecialty, patientName, patientConditions, patientAge, patientGender, callDuration, consultationNotes, language } = await request.json();
+        const { doctorName, doctorSpecialty, patientName, patientConditions, patientAge, patientGender, callDuration, consultationNotes, transcript, clinicalContext, language } = await request.json();
 
         const userMessage = `
 CONSULTATION DETAILS:
 - Doctor: ${doctorName} (${doctorSpecialty})
-- Patient: ${patientName}
-- Patient Age: ${patientAge || 'Not specified'}
-- Patient Gender: ${patientGender || 'Not specified'}
+- Patient: ${patientName}, ${patientAge || 'age not specified'}, ${patientGender || 'gender not specified'}
 - Known Conditions: ${patientConditions?.join(', ') || 'None reported'}
-- Call Duration: ${callDuration} minutes
+- Consultation length: ${callDuration || 'unknown'} minutes
 - Language Preference: ${language || 'English'}
-${consultationNotes ? `- Doctor's Notes from Consultation: ${consultationNotes}` : '- General consultation for the known conditions'}
 
-Please generate a complete prescription based on this teleconsultation.`;
+PRE-CONSULTATION RECORD (intake, assessment, vitals, reports):
+${clinicalContext || 'Not available'}
+
+CONSULTATION TRANSCRIPT (recorded with consent):
+${transcript || 'No transcript captured.'}
+${consultationNotes ? `\nDOCTOR'S NOTES:\n${consultationNotes}` : ''}
+
+Draft the care plan.`;
 
         const result = await callGroq(
             [{ role: 'user', content: userMessage }],
             PRESCRIPTION_SYSTEM_PROMPT
         );
 
-        // Parse the JSON response
         let prescription;
         try {
-            // Try to extract JSON from the response (handle if wrapped in backticks)
+            // Extract JSON even if the model wrapped it in backticks
             const jsonMatch = result.match(/\{[\s\S]*\}/);
             prescription = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(result);
         } catch {
-            // If parsing fails, return a structured fallback
-            prescription = {
-                diagnosis: 'General consultation',
-                medicines: [
-                    { name: 'Paracetamol', dosage: '500mg', frequency: 'As needed', duration: '5 days', notes: 'For fever/pain relief' }
-                ],
-                advice: result, // Use the raw AI text as advice
-                followUpDays: 7
-            };
+            // Unparseable: hand the raw text to the doctor as the summary, with nothing prescribed
+            prescription = { summary: result, diagnosis: '', medicines: [], diet: '', exercise: '', advice: '', followUpDays: 7 };
         }
 
         return NextResponse.json({ prescription });

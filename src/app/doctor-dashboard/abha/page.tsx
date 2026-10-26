@@ -78,11 +78,11 @@ export default function ABHARegistryPage() {
             {/* Error State */}
             {error && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{
-                    padding: 16, borderRadius: 12, background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24
+                    padding: 16, borderRadius: 12, background: 'rgba(220, 38, 38, 0.1)',
+                    border: '1px solid rgba(220, 38, 38, 0.2)', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24
                 }}>
-                    <AlertTriangle size={20} color="#EF4444" />
-                    <span style={{ color: '#EF4444', fontWeight: 500 }}>{error}</span>
+                    <AlertTriangle size={20} color="#DC2626" />
+                    <span style={{ color: '#DC2626', fontWeight: 500 }}>{error}</span>
                 </motion.div>
             )}
 
@@ -102,7 +102,7 @@ export default function ABHARegistryPage() {
                                         {record.name.charAt(0)}
                                     </div>
                                     <h2 style={{ fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                        {record.name} <CheckCircle size={16} color="#10B981" />
+                                        {record.name} <CheckCircle size={16} color="#059669" />
                                     </h2>
                                     <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>ABHA: {record.id}</p>
                                 </div>
@@ -114,7 +114,7 @@ export default function ABHARegistryPage() {
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                                         <span style={{ color: 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Droplets size={14} /> Blood Group</span>
-                                        <span style={{ fontWeight: 600, color: '#EF4444' }}>{record.bloodGroup}</span>
+                                        <span style={{ fontWeight: 600, color: '#DC2626' }}>{record.bloodGroup}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                                         <span style={{ color: 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><History size={14} /> Last Updated</span>
@@ -147,14 +147,14 @@ export default function ABHARegistryPage() {
                                 {/* Active Conditions */}
                                 <div className="glass-card-static" style={{ padding: 24 }}>
                                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <HeartPulse size={18} style={{ color: '#EF4444' }} /> Active Conditions
+                                        <HeartPulse size={18} style={{ color: '#DC2626' }} /> Active Conditions
                                     </h3>
                                     {record.conditions.length > 0 ? (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                                             {record.conditions.map((condition, idx) => (
                                                 <span key={idx} style={{
                                                     padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-                                                    background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.2)'
+                                                    background: 'rgba(220, 38, 38, 0.1)', color: '#DC2626', border: '1px solid rgba(220, 38, 38, 0.2)'
                                                 }}>
                                                     {condition}
                                                 </span>
@@ -168,14 +168,14 @@ export default function ABHARegistryPage() {
                                 {/* Current Medications */}
                                 <div className="glass-card-static" style={{ padding: 24 }}>
                                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <Database size={18} style={{ color: '#10B981' }} /> Current Medications
+                                        <Database size={18} style={{ color: '#059669' }} /> Current Medications
                                     </h3>
                                     {record.medications.length > 0 ? (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                                             {record.medications.map((med, idx) => (
                                                 <span key={idx} style={{
                                                     padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-                                                    background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', border: '1px solid rgba(16, 185, 129, 0.2)'
+                                                    background: 'rgba(5, 150, 105, 0.1)', color: '#059669', border: '1px solid rgba(5, 150, 105, 0.2)'
                                                 }}>
                                                     {med}
                                                 </span>

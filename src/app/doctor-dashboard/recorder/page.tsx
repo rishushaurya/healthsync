@@ -3,12 +3,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Mic, Square, Loader2, Save, Play, CheckCircle, AlertCircle, FileText, User, Bot 
+    Mic, Square, Loader2, Save, Play, CheckCircle, AlertCircle, FileText, User, ClipboardCheck 
 } from 'lucide-react';
-import { 
-    getCurrentDoctor, getDoctorAppointments, getAllUsers, 
-    addDoctorNote, generateId, type DoctorAccount, type UserProfile 
+import { useRouter } from 'next/navigation';
+import {
+    getCurrentDoctor, getDoctorAppointments, getAllUsers, getDoctorJourneys, getConsent, setConsent,
+    addDoctorNote, generateId, type DoctorAccount
 } from '@/lib/store';
+import { cloudAppendTranscript } from '@/lib/shared-store';
+import { createCarePlanDraft } from '@/lib/care-plan';
 
 export default function AppointmentRecorderPage() {
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
@@ -25,6 +28,12 @@ export default function AppointmentRecorderPage() {
 
     const recognitionRef = useRef<any>(null);
     const isRecordingRef = useRef(false);
+    const router = useRouter();
+    const [, rerender] = useState(0);
+    const [drafting, setDrafting] = useState(false);
+    // Physical visit in a patient's journey: transcript lines also go to the shared consultation record
+    const journeyIdRef = useRef<string | null>(null);
+    const startedAtRef = useRef(new Date().toISOString());
 
     useEffect(() => {
         const doc = getCurrentDoctor();
@@ -48,6 +57,8 @@ export default function AppointmentRecorderPage() {
         });
         
         setPatients(Array.from(patientMap.values()));
+        const urlPatient = new URLSearchParams(window.location.search).get('patient');
+        if (urlPatient) setSelectedPatient(urlPatient);
         
         // Initialize SpeechRecognition if available
         if (typeof window !== 'undefined') {
@@ -74,6 +85,7 @@ export default function AppointmentRecorderPage() {
                     setInterimTranscript(currentInterim);
                     if (finalTranscripts) {
                         setTranscript(prev => prev + finalTranscripts);
+                        if (journeyIdRef.current) cloudAppendTranscript(journeyIdRef.current, { speaker: 'room', text: finalTranscripts.trim(), at: new Date().toISOString() });
                     }
                 };
 
@@ -110,6 +122,10 @@ export default function AppointmentRecorderPage() {
             return;
         }
 
+        if (!isRecording && journey && !(consent.patient && consent.doctor)) {
+            setError('Recording needs both the patient’s and your consent for this consultation.');
+            return;
+        }
         if (isRecording) {
             recognitionRef.current.stop();
             setIsRecording(false);
@@ -120,6 +136,7 @@ export default function AppointmentRecorderPage() {
             if (!transcript) setInterimTranscript('');
             try {
                 isRecordingRef.current = true;
+                if (!transcript) startedAtRef.current = new Date().toISOString();
                 setIsRecording(true);
                 recognitionRef.current.start();
             } catch (err) {
@@ -176,6 +193,33 @@ export default function AppointmentRecorderPage() {
         }
     };
 
+    const journey = doctor && selectedPatient
+        ? getDoctorJourneys(doctor.id).find(j => j.patient.id === selectedPatient && !j.verified)
+        : undefined;
+    const consent = journey ? getConsent(journey.id) : { patient: false, doctor: false };
+    useEffect(() => {
+        journeyIdRef.current = journey && consent.patient && consent.doctor ? journey.id : null;
+    });
+    // Pick up a patient consenting from their own app
+    useEffect(() => {
+        const id = setInterval(() => rerender(n => n + 1), 3000);
+        return () => clearInterval(id);
+    }, []);
+
+    const draftCarePlan = async () => {
+        if (!doctor || !journey) return;
+        if (isRecording) toggleRecording();
+        setDrafting(true);
+        setError('');
+        try {
+            await createCarePlanDraft(journey, doctor, 'physical', startedAtRef.current);
+            router.push(`/doctor-dashboard/case/${journey.id}`);
+        } catch {
+            setError('Could not draft the care plan. Try again.');
+            setDrafting(false);
+        }
+    };
+
     const saveToPatientNotes = () => {
         if (!doctor || !selectedPatient || !aiSummary) return;
 
@@ -200,21 +244,21 @@ export default function AppointmentRecorderPage() {
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
             <div style={{ marginBottom: 24 }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Mic className="text-primary" /> AI Appointment Recorder
+                    <Mic color="var(--color-primary)" /> Consultation recorder
                 </h1>
                 <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Record, transcribe, and perfectly summarize patient appointments using AI.
+                    For in-person visits: record with consent, then draft the patient’s care plan for your approval.
                 </p>
             </div>
 
             {error && (
-                <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                <div style={{ padding: '12px 16px', background: 'rgba(220, 38, 38, 0.1)', color: '#DC2626', borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
                     <AlertCircle size={16} /> {error}
                 </div>
             )}
 
             {successMessage && (
-                <div style={{ padding: '12px 16px', background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                <div style={{ padding: '12px 16px', background: 'rgba(5, 150, 105, 0.1)', color: '#059669', borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
                     <CheckCircle size={16} /> {successMessage}
                 </div>
             )}
@@ -240,10 +284,23 @@ export default function AppointmentRecorderPage() {
                             </select>
                         </div>
                     </div>
+                    {journey && (
+                        <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: '1px solid var(--border-color)', display: 'grid', gap: 8, fontSize: 14.5 }}>
+                            <strong>Recording consent · {journey.reasonForVisit || 'consultation'}</strong>
+                            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <input type="checkbox" checked={consent.patient} onChange={e => { setConsent(journey.id, 'patient', e.target.checked); rerender(n => n + 1); }} style={{ width: 18, height: 18, accentColor: 'var(--color-primary)' }} />
+                                Patient has given consent (in their app or verbally to me)
+                            </label>
+                            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <input type="checkbox" checked={consent.doctor} onChange={e => { setConsent(journey.id, 'doctor', e.target.checked); rerender(n => n + 1); }} style={{ width: 18, height: 18, accentColor: 'var(--color-primary)' }} />
+                                I consent to recording this consultation
+                            </label>
+                        </div>
+                    )}
                 </div>
 
-                <div style={{ 
-                    background: 'var(--bg-secondary)', 
+                <div style={{
+                    background: 'var(--bg-secondary)',  
                     borderRadius: 16, 
                     border: '1px solid var(--border-color)',
                     overflow: 'hidden'
@@ -261,7 +318,7 @@ export default function AppointmentRecorderPage() {
                                 <motion.div
                                     animate={{ scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }}
                                     transition={{ repeat: Infinity, duration: 1.5 }}
-                                    style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444' }}
+                                    style={{ width: 10, height: 10, borderRadius: '50%', background: '#DC2626' }}
                                 />
                             )}
                             <span style={{ fontWeight: 600, fontSize: 14 }}>
@@ -290,7 +347,7 @@ export default function AppointmentRecorderPage() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 6,
-                                    background: isRecording ? '#EF4444' : 'var(--color-primary)',
+                                    background: isRecording ? '#DC2626' : 'var(--color-primary)',
                                     color: 'white'
                                 }}
                             >
@@ -328,9 +385,14 @@ export default function AppointmentRecorderPage() {
                     </div>
                 </div>
 
-                <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-                    <button 
-                        className="btn-primary" 
+                <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+                    {journey && (
+                        <button className="btn-primary" onClick={draftCarePlan} disabled={drafting || !transcript.trim()}>
+                            {drafting ? <Loader2 className="animate-spin" size={18} /> : <ClipboardCheck size={18} />} Draft care plan for my approval
+                        </button>
+                    )}
+                    <button
+                        className={journey ? 'btn-secondary' : 'btn-primary'}
                         onClick={analyzeTranscript}
                         disabled={!transcript.trim() || isAnalyzing || isRecording}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: (!transcript.trim() || isAnalyzing || isRecording) ? 0.6 : 1 }}
@@ -350,7 +412,7 @@ export default function AppointmentRecorderPage() {
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Bot size={20} /> AI Generated Summary
+                            <ClipboardCheck size={20} /> Consultation Summary
                         </h2>
                         
                         <button 
@@ -364,7 +426,7 @@ export default function AppointmentRecorderPage() {
                     </div>
 
                     {!selectedPatient && (
-                        <div style={{ padding: '8px 12px', background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+                        <div style={{ padding: '8px 12px', background: 'rgba(217, 119, 6, 0.1)', color: '#D97706', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
                             Please select a patient at the top to save this summary to their records.
                         </div>
                     )}

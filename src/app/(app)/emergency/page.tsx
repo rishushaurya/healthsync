@@ -131,12 +131,12 @@ export default function EmergencyPage() {
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 32, textAlign: 'center' }}>
                 <div style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: 64, height: 64, borderRadius: 20, background: 'rgba(239, 68, 68, 0.1)',
-                    color: '#EF4444', marginBottom: 16
+                    width: 64, height: 64, borderRadius: 20, background: 'rgba(220, 38, 38, 0.1)',
+                    color: '#DC2626', marginBottom: 16
                 }}>
                     <AlertTriangle size={32} />
                 </div>
-                <h1 style={{ fontSize: 28, fontWeight: 800, color: '#EF4444' }}>Emergency Services</h1>
+                <h1 style={{ fontSize: 28, fontWeight: 800, color: '#DC2626' }}>Emergency Services</h1>
                 <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
                     If this is a life-threatening medical emergency, call 112 immediately.
                 </p>
@@ -171,7 +171,7 @@ export default function EmergencyPage() {
                     padding: 24, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 20,
                     transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
                 }} className="hover-lift">
-                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, color: '#10B981' }}>
+                    <div style={{ background: 'rgba(5, 150, 105, 0.1)', padding: 16, borderRadius: 16, color: '#059669' }}>
                         <Users size={28} />
                     </div>
                     <div>
@@ -186,7 +186,7 @@ export default function EmergencyPage() {
                     padding: 24, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 20,
                     transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
                 }} className="hover-lift">
-                    <div style={{ background: 'rgba(139, 92, 246, 0.1)', padding: 16, borderRadius: 16, color: '#8B5CF6' }}>
+                    <div style={{ background: 'rgba(79, 107, 138, 0.1)', padding: 16, borderRadius: 16, color: '#4F6B8A' }}>
                         <BedDouble size={28} />
                     </div>
                     <div>
@@ -201,7 +201,7 @@ export default function EmergencyPage() {
                     padding: 24, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 20,
                     transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
                 }} className="hover-lift">
-                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 16, color: '#EF4444' }}>
+                    <div style={{ background: 'rgba(220, 38, 38, 0.1)', padding: 16, borderRadius: 16, color: '#DC2626' }}>
                         <Droplet size={28} />
                     </div>
                     <div>
@@ -216,7 +216,7 @@ export default function EmergencyPage() {
                     padding: 24, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 20,
                     transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
                 }} className="hover-lift">
-                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, color: '#10B981' }}>
+                    <div style={{ background: 'rgba(5, 150, 105, 0.1)', padding: 16, borderRadius: 16, color: '#059669' }}>
                         <Building2 size={28} />
                     </div>
                     <div>
@@ -228,10 +228,10 @@ export default function EmergencyPage() {
                 {/* Direct Dial 112 */}
                 <motion.a variants={itemVariants} href="tel:112" style={{
                     gridColumn: '1 / -1',
-                    background: '#EF4444', color: 'white', border: 'none', borderRadius: 16,
+                    background: '#DC2626', color: 'white', border: 'none', borderRadius: 16,
                     padding: 20, textAlign: 'center', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                     textDecoration: 'none', fontWeight: 700, fontSize: 18,
-                    boxShadow: '0 8px 30px rgba(239, 68, 68, 0.3)'
+                    boxShadow: '0 8px 30px rgba(220, 38, 38, 0.3)'
                 }} className="hover-lift">
                     <Phone size={24} /> Dial 112 (National Emergency)
                 </motion.a>
@@ -262,8 +262,8 @@ export default function EmergencyPage() {
                             </button>
 
                             <div style={{
-                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)',
-                                color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(5, 150, 105, 0.1)',
+                                color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 24px'
                             }}>
                                 <CheckCircle2 size={40} />
@@ -309,8 +309,8 @@ export default function EmergencyPage() {
                             </button>
 
                             <div style={{
-                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)',
-                                color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(220, 38, 38, 0.1)',
+                                color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 24px'
                             }}>
                                 <Droplet size={40} />
@@ -388,7 +388,7 @@ export default function EmergencyPage() {
                                 </button>
                                 <button onClick={handleBookAmbulance} style={{ 
                                     padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                    background: '#EF4444', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer'
+                                    background: '#DC2626', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer'
                                 }}>
                                     <Ambulance size={20} /> Dispatch Ambulance
                                 </button>
@@ -423,8 +423,8 @@ export default function EmergencyPage() {
                             </button>
 
                             <div style={{
-                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(139, 92, 246, 0.1)',
-                                color: '#8B5CF6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(79, 107, 138, 0.1)',
+                                color: '#4F6B8A', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 24px'
                             }}>
                                 <BedDouble size={40} />
@@ -444,7 +444,7 @@ export default function EmergencyPage() {
                                 </select>
                             </div>
 
-                            <button onClick={handleBookBed} className="btn-primary" style={{ width: '100%', padding: 14, background: '#8B5CF6', color: 'white' }}>
+                            <button onClick={handleBookBed} className="btn-primary" style={{ width: '100%', padding: 14, background: '#4F6B8A', color: 'white' }}>
                                 Submit Bed Request
                             </button>
                         </motion.div>
@@ -477,8 +477,8 @@ export default function EmergencyPage() {
                             </button>
 
                             <div style={{
-                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)',
-                                color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 80, height: 80, borderRadius: '50%', background: 'rgba(5, 150, 105, 0.1)',
+                                color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 24px'
                             }}>
                                 <Building2 size={40} />
@@ -498,7 +498,7 @@ export default function EmergencyPage() {
                                 </select>
                             </div>
 
-                            <button onClick={handleRequestMachine} className="btn-primary" style={{ width: '100%', padding: 14, background: '#10B981', color: 'white' }}>
+                            <button onClick={handleRequestMachine} className="btn-primary" style={{ width: '100%', padding: 14, background: '#059669', color: 'white' }}>
                                 Request Machine
                             </button>
                         </motion.div>

@@ -85,7 +85,7 @@ export default function AbhaGovPortal() {
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
                                                 title="Copy ID"
                                             >
-                                                {copiedId === patient.abhaId ? <CheckCircle size={16} color="#10B981" /> : <Copy size={16} />}
+                                                {copiedId === patient.abhaId ? <CheckCircle size={16} color="#059669" /> : <Copy size={16} />}
                                             </button>
                                         </div>
                                     </td>
@@ -95,13 +95,13 @@ export default function AbhaGovPortal() {
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{patient.email}</div>
                                     </td>
                                     <td style={{ padding: '16px 24px' }}>
-                                        <span style={{ padding: '4px 8px', borderRadius: 4, background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', fontWeight: 600, fontSize: 12 }}>
+                                        <span style={{ padding: '4px 8px', borderRadius: 4, background: 'rgba(220, 38, 38, 0.1)', color: '#DC2626', fontWeight: 600, fontSize: 12 }}>
                                             {patient.bloodGroup}
                                         </span>
                                     </td>
                                     <td style={{ padding: '16px 24px', fontSize: 14, color: 'var(--text-secondary)' }}>
                                         {patient.medicalHistory ? (
-                                            <span style={{ display: 'inline-block', padding: '4px 10px', background: 'rgba(245, 158, 11, 0.1)', color: '#D97706', borderRadius: 12, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                            <span style={{ display: 'inline-block', padding: '4px 10px', background: 'rgba(217, 119, 6, 0.1)', color: '#D97706', borderRadius: 12, border: '1px solid rgba(217, 119, 6, 0.2)' }}>
                                                 {patient.medicalHistory}
                                             </span>
                                         ) : (

@@ -2,7 +2,7 @@
 // Calls use these server-side array ops directly; everything else syncs through store.ts
 
 import { useEffect, useState } from 'react';
-import type { UserProfile, Appointment, CallLog, Prescription, Notification } from './store';
+import type { UserProfile, Appointment, CallLog, Prescription, Notification, TranscriptLine } from './store';
 import { syncFromCloud } from './store';
 
 const API = '/api/store';
@@ -121,6 +121,13 @@ export async function cloudUpdateCallLog(id: string, updates: Partial<CallLog>):
 export async function cloudGetActiveCall(): Promise<CallLog | null> {
     const all = (await cloudGet<CallLog[]>('hs_call_logs')) || [];
     return all.find(c => c.status === 'ringing' || c.status === 'ongoing') || null;
+}
+
+// ---------- Consultation transcript ----------
+
+// Server-side append so doctor and patient devices can both add lines without overwriting each other
+export async function cloudAppendTranscript(journeyId: string, line: TranscriptLine): Promise<void> {
+    await cloudPush(`hs_transcript_${journeyId}`, line);
 }
 
 // ---------- Prescriptions ----------

@@ -35,7 +35,7 @@ export default function AdminPortal() {
                 </div>
 
                 <div className="glass-card" style={{ padding: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10B981', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#059669', marginBottom: 12 }}>
                         <Activity size={20} />
                         <h3 style={{ fontWeight: 600, fontSize: 16, margin: 0 }}>MediKiosk Logs</h3>
                     </div>
@@ -44,7 +44,7 @@ export default function AdminPortal() {
                 </div>
 
                 <div className="glass-card" style={{ padding: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#EF4444', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#DC2626', marginBottom: 12 }}>
                         <Droplet size={20} />
                         <h3 style={{ fontWeight: 600, fontSize: 16, margin: 0 }}>Blood Bank</h3>
                     </div>
@@ -53,7 +53,7 @@ export default function AdminPortal() {
                 </div>
 
                 <div className="glass-card" style={{ padding: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#F59E0B', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#D97706', marginBottom: 12 }}>
                         <Building2 size={20} />
                         <h3 style={{ fontWeight: 600, fontSize: 16, margin: 0 }}>Hospital Capacity</h3>
                     </div>
@@ -71,15 +71,15 @@ export default function AdminPortal() {
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
                             <div style={{ fontWeight: 600 }}>{sys}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', boxShadow: '0 0 8px #10B981' }} />
-                                <span style={{ fontSize: 12, fontWeight: 600, color: '#10B981' }}>ONLINE</span>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', boxShadow: '0 0 8px #059669' }} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>ONLINE</span>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
             
-            <div style={{ padding: 24, background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 12, color: 'var(--text-secondary)', fontSize: 14 }}>
+            <div style={{ padding: 24, background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', borderRadius: 12, color: 'var(--text-secondary)', fontSize: 14 }}>
                 <strong>Admin Notice:</strong> This is a high-level command center. Detailed operations for admissions, blood requests, and clinical intakes should be handled through their respective specialized portals.
             </div>
         </div>

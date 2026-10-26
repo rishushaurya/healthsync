@@ -48,18 +48,18 @@ export default function FamilyPage() {
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 style={{
                     padding: 20, borderRadius: 16, marginBottom: 24,
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(245, 158, 11, 0.08) 100%)',
-                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                    background: 'rgba(220, 38, 38, 0.08)',
+                    border: '1px solid rgba(220, 38, 38, 0.15)',
                 }}
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{
                             width: 48, height: 48, borderRadius: 14,
-                            background: 'rgba(239, 68, 68, 0.15)',
+                            background: 'rgba(220, 38, 38, 0.15)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                            <AlertTriangle size={24} style={{ color: '#EF4444' }} />
+                            <AlertTriangle size={24} style={{ color: '#DC2626' }} />
                         </div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 16 }}>Emergency SOS</div>
@@ -112,9 +112,9 @@ export default function FamilyPage() {
                                     {member.conditions.map((c, j) => (
                                         <span key={j} style={{
                                             padding: '4px 10px', borderRadius: 8, fontSize: 12,
-                                            background: 'rgba(245, 158, 11, 0.1)',
-                                            border: '1px solid rgba(245, 158, 11, 0.2)',
-                                            color: '#F59E0B', fontWeight: 500,
+                                            background: 'rgba(217, 119, 6, 0.1)',
+                                            border: '1px solid rgba(217, 119, 6, 0.2)',
+                                            color: '#D97706', fontWeight: 500,
                                         }}>
                                             {c}
                                         </span>

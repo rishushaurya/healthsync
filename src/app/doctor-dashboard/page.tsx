@@ -1,209 +1,201 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
-    Users, Calendar, Clock, FileText, Phone, Plus,
-    TrendingUp, Activity, ChevronRight, Bell
+    Users, Calendar, Clock, FileText, Phone, Plus, Video, Mic, ChevronRight, AlertTriangle, BadgeCheck, Activity, Building2,
 } from 'lucide-react';
 import {
-    getCurrentDoctor, getDoctorAppointments, getDoctorPrescriptions,
-    getCallLogs, getDoctorNotes, type DoctorAccount,
-    getAllUsers, type UserProfile, getIntakeSummaries
+    getCurrentDoctor, getDoctorAppointments, getDoctorPrescriptions, getCallLogs, getDoctorJourneys, getCarePlan,
+    getIntakeSummaries, getCheckins, recoveryRate,
+    type DoctorAccount, type JourneyWithPatient, type ClinicalIntakeSummary,
 } from '@/lib/store';
 
+type Apt = ReturnType<typeof getDoctorAppointments>[number];
+
+function PatientRow({ name, sub, right, href }: { name: string; sub: React.ReactNode; right?: React.ReactNode; href: string }) {
+    return (
+        <Link href={href} className="card glass-card" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'var(--text-primary)' }}>
+            <span style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--color-primary)', display: 'grid', placeItems: 'center', fontWeight: 700, flexShrink: 0 }}>{name.charAt(0)}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 600 }}>{name}</span>
+                <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-secondary)' }}>{sub}</span>
+            </span>
+            {right}
+            <ChevronRight size={16} color="var(--text-muted)" />
+        </Link>
+    );
+}
+
 export default function DoctorDashboard() {
-    const router = useRouter();
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
-    const [appointments, setAppointments] = useState<ReturnType<typeof getDoctorAppointments>>([]);
+    const [appointments, setAppointments] = useState<Apt[]>([]);
+    const [journeys, setJourneys] = useState<JourneyWithPatient[]>([]);
     const [prescriptionCount, setPrescriptionCount] = useState(0);
     const [callCount, setCallCount] = useState(0);
-    const [noteCount, setNoteCount] = useState(0);
-    const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-    const [kioskSummaries, setKioskSummaries] = useState<ReturnType<typeof getIntakeSummaries>>([]);
+    const [kioskSummaries, setKioskSummaries] = useState<ClinicalIntakeSummary[]>([]);
 
     useEffect(() => {
-        setAllUsers(getAllUsers());
-        const doc = getCurrentDoctor();
-        if (!doc) return;
-        setDoctor(doc);
-        const apts = getDoctorAppointments(doc.id);
-        setAppointments(apts);
-        setPrescriptionCount(getDoctorPrescriptions(doc.id).length);
-        setCallCount(getCallLogs(doc.id, 'doctor').length);
-        setNoteCount(getDoctorNotes(doc.id).length);
-        
-        // Load MediKiosk Summaries
-        setKioskSummaries(getIntakeSummaries('user1').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        const load = () => {
+            const doc = getCurrentDoctor();
+            if (!doc) return;
+            setDoctor(doc);
+            const apts = getDoctorAppointments(doc.id);
+            setAppointments(apts);
+            setJourneys(getDoctorJourneys(doc.id));
+            setPrescriptionCount(getDoctorPrescriptions(doc.id).length);
+            setCallCount(getCallLogs(doc.id, 'doctor').length);
+            // MediKiosk intakes from this doctor's patients
+            setKioskSummaries([...new Set(apts.map(a => a.userId))].flatMap(getIntakeSummaries).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6));
+        };
+        load();
+        const id = setInterval(load, 5000); // new bookings and drafts arrive via background sync
+        return () => clearInterval(id);
     }, []);
 
     if (!doctor) return null;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const todayApts = appointments.filter(a => a.date === todayStr);
-    const uniquePatients = new Set(appointments.map(a => a.userId));
+    const withPlan = journeys.map(j => ({ j, plan: getCarePlan(j) }));
+    const awaiting = withPlan.filter(x => x.plan?.status === 'draft');
+    const queue = withPlan.filter(x => !x.plan && x.j.appointmentId);
+    const recovering = withPlan.filter(x => x.plan?.status === 'approved');
+    const aptFor = (j: JourneyWithPatient) => appointments.find(a => a.id === j.appointmentId);
 
     const stats = [
-        { label: 'Total Patients', value: uniquePatients.size, icon: Users, color: '#0EA5E9' },
-        { label: "Today's Appointments", value: todayApts.length, icon: Calendar, color: '#10B981' },
-        { label: 'Prescriptions Sent', value: prescriptionCount, icon: FileText, color: '#8B5CF6' },
-        { label: 'Calls Made', value: callCount, icon: Phone, color: '#F59E0B' },
+        { label: 'Patients', value: new Set(appointments.map(a => a.userId)).size, icon: Users },
+        { label: "Today's appointments", value: todayApts.length, icon: Calendar },
+        { label: 'Awaiting approval', value: awaiting.length, icon: AlertTriangle },
+        { label: 'Prescriptions sent', value: prescriptionCount, icon: FileText },
+        { label: 'Calls', value: callCount, icon: Phone },
     ];
 
     const quickActions = [
-        { label: 'View Patients', icon: Users, href: '/doctor-dashboard/patients', color: '#0EA5E9' },
-        { label: 'Write Prescription', icon: FileText, href: '/doctor-dashboard/prescriptions', color: '#8B5CF6' },
-        { label: 'Start Call', icon: Phone, href: '/doctor-dashboard/calls', color: '#10B981' },
-        { label: 'Add Note', icon: Plus, href: '/doctor-dashboard/notes', color: '#F59E0B' },
+        { label: 'View patients', icon: Users, href: '/doctor-dashboard/patients' },
+        { label: 'Write prescription', icon: FileText, href: '/doctor-dashboard/prescriptions' },
+        { label: 'Start call', icon: Phone, href: '/doctor-dashboard/calls' },
+        { label: 'Record visit', icon: Mic, href: '/doctor-dashboard/recorder' },
+        { label: 'Add note', icon: Plus, href: '/doctor-dashboard/notes' },
     ];
 
     return (
         <div>
-            {/* Welcome */}
-            <div style={{ marginBottom: 28 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800 }}>Welcome back, {doctor.name.split(' ')[1] || doctor.name}</h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>{doctor.specialty} • {doctor.hospital}</p>
+            <h1 className="page-title">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {doctor.name}</h1>
+            <p className="page-subtitle">{doctor.specialty} · {doctor.hospital}</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, margin: '20px 0 24px' }}>
+                {stats.map(s => (
+                    <div key={s.label} className="card" style={{ padding: 18 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 13.5 }}><s.icon size={16} /> {s.label}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, marginTop: 6 }}>{s.value}</div>
+                    </div>
+                ))}
             </div>
 
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
-                {stats.map((stat, i) => {
-                    const Icon = stat.icon;
-                    return (
-                        <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="glass-card-static" style={{ padding: 22 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                <div style={{ width: 40, height: 40, borderRadius: 12, background: `${stat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Icon size={20} style={{ color: stat.color }} />
-                                </div>
-                                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{stat.label}</span>
-                            </div>
-                            <div style={{ fontSize: 32, fontWeight: 800 }}>{stat.value}</div>
-                        </motion.div>
-                    );
-                })}
-            </div>
-
-            {/* Quick Actions */}
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Quick Actions</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
-                {quickActions.map((action, i) => {
-                    const Icon = action.icon;
-                    return (
-                        <motion.button key={i} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                            onClick={() => router.push(action.href)} className="glass-card"
-                            style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', border: '1px solid var(--border-color)', color: 'var(--text-primary)', textAlign: 'left' }}>
-                            <Icon size={20} style={{ color: action.color }} />
-                            <span style={{ fontWeight: 600, fontSize: 13 }}>{action.label}</span>
-                        </motion.button>
-                    );
-                })}
-            </div>
-
-            {/* MediKiosk Intake Summaries */}
-            {kioskSummaries.length > 0 && (
-                <>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Recent MediKiosk AI Intakes</h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginBottom: 28 }}>
-                        {kioskSummaries.map((summary, i) => (
-                            <motion.div key={summary.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="glass-card" style={{ padding: 20 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: 16 }}>{summary.patientName || 'Unknown Patient'}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>ABHA: {summary.abhaId || 'N/A'}</div>
-                                    </div>
-                                    <span style={{ fontSize: 12, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', padding: '4px 8px', borderRadius: 8, fontWeight: 600 }}>
-                                        {summary.consultationType}
-                                    </span>
-                                </div>
-                                <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 8, background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    <div><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>CC:</span> {summary.chiefComplaint}</div>
-                                    {summary.hpi && <div><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>HPI:</span> {summary.hpi}</div>}
-                                    {summary.pastMedicalHistory && <div><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>PMH:</span> {summary.pastMedicalHistory}</div>}
-                                    {summary.drugAllergyHistory && <div><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>Allergies:</span> {summary.drugAllergyHistory}</div>}
-                                </div>
-                                {summary.redFlags && summary.redFlags.length > 0 && (
-                                    <div style={{ fontSize: 12, color: '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Activity size={14} /> {summary.redFlags.length} Red Flags Detected
-                                    </div>
-                                )}
-                            </motion.div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, alignItems: 'start' }}>
+                <section>
+                    <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center' }}><AlertTriangle size={18} color="var(--color-warning)" /> Awaiting your approval</h2>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {awaiting.length === 0 && <p className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>No care plans waiting.</p>}
+                        {awaiting.map(({ j, plan }) => (
+                            <PatientRow key={j.id} name={j.patient.name} href={`/doctor-dashboard/case/${j.id}`}
+                                sub={`${plan?.diagnosis || j.reasonForVisit} · drafted ${new Date(plan!.timestamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`}
+                                right={<span className="status-badge status-pending">Review</span>} />
                         ))}
                     </div>
-                </>
+
+                    <h2 style={{ fontSize: 17, fontWeight: 700, margin: '22px 0 10px', display: 'flex', gap: 8, alignItems: 'center' }}><Calendar size={18} /> Consultation queue</h2>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {queue.length === 0 && <p className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>No upcoming journey consultations.</p>}
+                        {queue.map(({ j }) => {
+                            const apt = aptFor(j);
+                            const online = j.consultationMode !== 'Physical';
+                            return (
+                                <div key={j.id} className="card" style={{ padding: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <span style={{ flex: 1, minWidth: 180 }}>
+                                        <Link href={`/doctor-dashboard/case/${j.id}`} style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{j.patient.name}</Link>
+                                        <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-secondary)' }}>
+                                            {online ? <Video size={13} style={{ verticalAlign: -2 }} /> : <Building2 size={13} style={{ verticalAlign: -2 }} />} {apt ? `${apt.date} · ${apt.time}` : 'Booked'} · {j.reasonForVisit}
+                                        </span>
+                                    </span>
+                                    {online
+                                        ? <Link href={`/doctor-dashboard/calls?patient=${j.patient.id}`} className="btn-primary" style={{ minHeight: 38, padding: '6px 14px', fontSize: 14 }}><Video size={15} /> Start call</Link>
+                                        : <Link href={`/doctor-dashboard/recorder?patient=${j.patient.id}`} className="btn-primary" style={{ minHeight: 38, padding: '6px 14px', fontSize: 14 }}><Mic size={15} /> Record visit</Link>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <section>
+                    <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center' }}><Activity size={18} color="var(--color-accent)" /> Recovering patients</h2>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {recovering.length === 0 && <p className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Approved plans and daily recovery rates appear here.</p>}
+                        {recovering.map(({ j, plan }) => {
+                            const rate = recoveryRate(getCheckins(j.id));
+                            return (
+                                <PatientRow key={j.id} name={j.patient.name} href={`/doctor-dashboard/case/${j.id}`}
+                                    sub={<><BadgeCheck size={13} style={{ verticalAlign: -2 }} /> {plan?.diagnosis || j.reasonForVisit} · follow-up {plan?.followUpDate}</>}
+                                    right={<strong style={{ color: 'var(--color-primary)' }}>{rate === null ? 'No check-ins' : `${rate}%`}</strong>} />
+                            );
+                        })}
+                    </div>
+
+                    <h2 style={{ fontSize: 17, fontWeight: 700, margin: '22px 0 10px' }}>Quick actions</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                        {quickActions.map(a => (
+                            <Link key={a.href} href={a.href} className="card glass-card" style={{ padding: 14, display: 'flex', gap: 10, alignItems: 'center', textDecoration: 'none', color: 'var(--text-primary)', fontWeight: 600, fontSize: 14 }}>
+                                <a.icon size={18} color="var(--color-primary)" /> {a.label}
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+            </div>
+
+            {kioskSummaries.length > 0 && (
+                <section style={{ marginTop: 28 }}>
+                    <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10 }}>Recent MediKiosk intakes</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+                        {kioskSummaries.map(s => (
+                            <article key={s.id} className="card" style={{ padding: 18, fontSize: 14.5 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                    <strong>{s.patientName || 'Patient'}</strong>
+                                    <span className="status-badge status-active">{s.consultationType}</span>
+                                </div>
+                                <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>ABHA: {s.abhaId || 'not linked'} · {new Date(s.date).toLocaleDateString('en-IN')}</div>
+                                <p style={{ marginTop: 8 }}><strong>Complaint:</strong> {s.chiefComplaint}</p>
+                                {s.pastMedicalHistory && <p><strong>History:</strong> {s.pastMedicalHistory}</p>}
+                                {s.drugAllergyHistory && <p><strong>Allergies:</strong> {s.drugAllergyHistory}</p>}
+                                {s.recommendedSpecialty && <p><strong>Suggested:</strong> {s.recommendedSpecialty}</p>}
+                                {s.redFlags?.length > 0 && <p style={{ color: 'var(--color-danger)', fontWeight: 600, marginTop: 6 }}><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> {s.redFlags.length} red flag(s)</p>}
+                            </article>
+                        ))}
+                    </div>
+                </section>
             )}
 
-            {/* Today's Appointments */}
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Today&apos;s Appointments</h2>
-            {todayApts.length === 0 ? (
-                <div className="glass-card-static" style={{ padding: 40, textAlign: 'center' }}>
-                    <Calendar size={36} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.3 }} />
-                    <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No appointments scheduled for today</p>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {todayApts.map((apt, i) => (
-                        <motion.div key={apt.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                            className="glass-card" style={{ padding: 18, cursor: 'pointer' }}
-                            onClick={() => router.push(`/doctor-dashboard/patients?id=${apt.userId}`)}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, overflow: 'hidden' }}>
-                                        {allUsers.find(u => u.id === apt.userId)?.avatar ? (
-                                            <img src={allUsers.find(u => u.id === apt.userId)!.avatar} alt={apt.patientName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        ) : (
-                                            apt.patientName?.charAt(0) || 'P'
-                                        )}
-                                    </div>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: 14 }}>{apt.patientName}</div>
-                                        <div style={{ fontSize: 12, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                                            <Clock size={12} /> {apt.time}
-                                        </div>
-                                    </div>
-                                </div>
-                                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                            </div>
-                        </motion.div>
+            <section style={{ marginTop: 28 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10 }}>Today’s appointments</h2>
+                <div style={{ display: 'grid', gap: 8 }}>
+                    {todayApts.length === 0 && <p className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>No appointments today.</p>}
+                    {todayApts.map(a => (
+                        <PatientRow key={a.id} name={a.patientName} href={`/doctor-dashboard/patients?id=${a.userId}`} sub={<><Clock size={13} style={{ verticalAlign: -2 }} /> {a.time} · {a.location}</>} />
                     ))}
                 </div>
-            )}
+            </section>
 
-            {/* Recent Appointments (All) */}
             {appointments.length > 0 && (
-                <>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14, marginTop: 28 }}>All Appointments</h2>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {appointments.slice(0, 10).map((apt, i) => (
-                            <motion.div key={apt.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-                                className="glass-card" style={{ padding: 16, cursor: 'pointer' }}
-                                onClick={() => router.push(`/doctor-dashboard/patients?id=${apt.userId}`)}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, overflow: 'hidden' }}>
-                                            {allUsers.find(u => u.id === apt.userId)?.avatar ? (
-                                                <img src={allUsers.find(u => u.id === apt.userId)!.avatar} alt={apt.patientName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                            ) : (
-                                                apt.patientName?.charAt(0) || 'P'
-                                            )}
-                                        </div>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: 13 }}>{apt.patientName}</div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                {new Date(apt.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })} at {apt.time}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span style={{
-                                        padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                        background: apt.status === 'booked' ? 'rgba(14,165,233,0.1)' : apt.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                                        color: apt.status === 'booked' ? '#0EA5E9' : apt.status === 'completed' ? '#10B981' : '#EF4444',
-                                    }}>{apt.status}</span>
-                                </div>
-                            </motion.div>
+                <section style={{ marginTop: 28 }}>
+                    <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10 }}>All appointments</h2>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {appointments.slice().sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).slice(0, 10).map(a => (
+                            <PatientRow key={a.id} name={a.patientName} href={`/doctor-dashboard/patients?id=${a.userId}`}
+                                sub={`${new Date(a.date + 'T00:00').toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at ${a.time}`}
+                                right={<span className={`status-badge ${a.status === 'booked' ? 'status-active' : a.status === 'completed' ? 'status-completed' : 'triage-red'}`}>{a.status}</span>} />
                         ))}
                     </div>
-                </>
+                </section>
             )}
         </div>
     );

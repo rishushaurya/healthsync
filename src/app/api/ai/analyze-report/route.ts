@@ -127,6 +127,12 @@ RULES:
             analysis = { laymanSummary: text, technicalSummary: text, abnormalities: [], recommendations: [], urgencyLevel: 'green' };
         }
 
+        // The frontend refuses to save anything that isn't a genuine medical report
+        analysis.isValidReport = analysis.isFake !== true;
+        if (!analysis.isValidReport) {
+            analysis.validationMessage = analysis.laymanSummary || 'This does not appear to be a genuine medical report.';
+        }
+
         return NextResponse.json({ analysis });
     } catch (error) {
         console.error('Report Analysis Error:', error);

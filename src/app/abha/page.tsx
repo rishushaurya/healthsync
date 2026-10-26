@@ -21,8 +21,8 @@ export default function AbhaHubPage() {
                         gap: 8,
                         padding: '8px 16px',
                         borderRadius: 24,
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        color: '#10B981',
+                        background: 'rgba(5, 150, 105, 0.1)',
+                        color: '#059669',
                         fontSize: 14,
                         fontWeight: 600,
                         marginBottom: 20
@@ -50,8 +50,8 @@ export default function AbhaHubPage() {
                                 width: 56,
                                 height: 56,
                                 borderRadius: 16,
-                                background: 'rgba(16, 185, 129, 0.12)',
-                                color: '#10B981',
+                                background: 'rgba(5, 150, 105, 0.12)',
+                                color: '#059669',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -64,7 +64,7 @@ export default function AbhaHubPage() {
                                 Look up your 14-digit ABHA card, verify demographic details, download digital ID, and view linked healthcare records.
                             </p>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10B981', fontWeight: 600, fontSize: 15 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#059669', fontWeight: 600, fontSize: 15 }}>
                             Access Patient ABHA <ArrowRight size={18} />
                         </div>
                     </motion.div>
@@ -80,7 +80,7 @@ export default function AbhaHubPage() {
                                 width: 56,
                                 height: 56,
                                 borderRadius: 16,
-                                background: 'rgba(14, 165, 233, 0.12)',
+                                background: 'rgba(14, 116, 144, 0.12)',
                                 color: 'var(--color-primary)',
                                 display: 'flex',
                                 alignItems: 'center',

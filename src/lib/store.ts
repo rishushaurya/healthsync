@@ -83,6 +83,9 @@ export interface ClinicalIntakeSummary {
     familyHistory?: string;
     redFlags: string[];
     transcript?: string;
+    explanation?: string;
+    recommendedSpecialty?: string;
+    specialtyReason?: string;
 }
 
 
@@ -263,6 +266,9 @@ export interface PatientJourney {
     draftCarePlanId?: string;
     approvedCarePlanId?: string;
     verified?: boolean;
+    doctorId?: string;
+    consultationMode?: 'Online' | 'Physical';
+    recommendedSpecialty?: string; // from MediKiosk / Digital Twin assessment
     createdAt: string;
     updatedAt: string;
 }
@@ -305,6 +311,12 @@ export interface CarePlanDraft {
     generalInstructions: string;
     status: 'draft' | 'approved' | 'rejected';
     doctorNotes?: string;
+    patientId?: string;
+    doctorId?: string;
+    summary?: string;
+    diagnosis?: string;
+    approvedAt?: string;
+    followUpDate?: string;
     timestamp: string;
 }
 
@@ -519,6 +531,14 @@ const DOCTOR_ACCOUNTS: DoctorAccount[] = [
     { id: 'doc16', name: 'Dr. Sanjay Joshi', email: 'sanjay@healthsync.com', password: simpleHash('doctor123'), specialty: 'Rheumatologist', hospital: 'AIIMS Delhi', experience: '14 yrs', image: 'SJ' },
     { id: 'doc17', name: 'Dr. Deepa Chauhan', email: 'deepa@healthsync.com', password: simpleHash('doctor123'), specialty: 'Pediatrician', hospital: 'Rainbow Hospital', experience: '16 yrs', image: 'DC' },
     { id: 'doc18', name: 'Dr. Abhishek Tiwari', email: 'abhishek@healthsync.com', password: simpleHash('doctor123'), specialty: 'Dentist', hospital: 'Clove Dental', experience: '8 yrs', image: 'AT' },
+    // AYUSH practitioners (match PLATFORM_DOCTORS doc19–doc25) so AYUSH-pathway bookings reach a doctor portal
+    { id: 'doc19', name: 'Dr. Vasant Lad', email: 'vasant@healthsync.com', password: simpleHash('doctor123'), specialty: 'Ayurvedic Physician', hospital: 'AyurCare Center', experience: '25 yrs', image: 'VL' },
+    { id: 'doc20', name: 'Dr. Smita Naram', email: 'smita@healthsync.com', password: simpleHash('doctor123'), specialty: 'Panchakarma Specialist', hospital: 'Vedic Healing', experience: '18 yrs', image: 'SN' },
+    { id: 'doc21', name: 'Dr. Batra', email: 'batra@healthsync.com', password: simpleHash('doctor123'), specialty: 'Homeopath', hospital: 'Batra Clinic', experience: '30 yrs', image: 'DB' },
+    { id: 'doc22', name: 'Dr. Ratan Kumar', email: 'ratan@healthsync.com', password: simpleHash('doctor123'), specialty: 'Homeopath', hospital: 'Online Homeo', experience: '12 yrs', image: 'RK' },
+    { id: 'doc23', name: 'Dr. Aditi Sharma', email: 'aditi@healthsync.com', password: simpleHash('doctor123'), specialty: 'Ayurvedic Physician', hospital: 'Patanjali Wellness', experience: '15 yrs', image: 'AS' },
+    { id: 'doc24', name: 'Dr. Rohan Nambiar', email: 'rohan@healthsync.com', password: simpleHash('doctor123'), specialty: 'Ayurvedic Orthopedic', hospital: 'Kerala Ayurveda', experience: '22 yrs', image: 'RN' },
+    { id: 'doc25', name: 'Dr. Neha Gupta', email: 'neha@healthsync.com', password: simpleHash('doctor123'), specialty: 'Ayurvedic Dermatologist', hospital: 'Jiva Ayurveda', experience: '10 yrs', image: 'NG' },
 ];
 
 export function getDoctorAccounts(): DoctorAccount[] {
@@ -603,10 +623,115 @@ export const saveJourney = (journey: PatientJourney) => {
     setStorage(key, all);
 };
 
+// Still being worked through (journeys left at PATIENT_PORTAL/RECOVERY by the old simulated approval count as finished)
+export const isInProgress = (j: PatientJourney | null): boolean =>
+    !!j && !j.verified && j.currentStep !== JourneyStep.PATIENT_PORTAL && j.currentStep !== JourneyStep.RECOVERY;
+
+// New check-in: resume an unfinished journey, but never reuse one whose plan was already approved
+export const startJourney = (userId: string, reasonForVisit: string): PatientJourney => {
+    const now = new Date().toISOString();
+    const active = getActiveJourney(userId);
+    if (active && isInProgress(active)) {
+        const resumed = { ...active, reasonForVisit, currentStep: JourneyStep.INTAKE, updatedAt: now };
+        saveJourney(resumed);
+        return resumed;
+    }
+    if (active) saveJourney({ ...active, currentStep: JourneyStep.COMPLETED, updatedAt: now });
+    const fresh: PatientJourney = { id: generateId(), userId, currentStep: JourneyStep.INTAKE, reasonForVisit, createdAt: now, updatedAt: now };
+    saveJourney(fresh);
+    return fresh;
+};
+
+// Patient home shows the most recent doctor-approved plan, even after a newer check-in has started
+export const getLatestApprovedJourney = (userId: string): PatientJourney | null =>
+    ((getStorage(`hs_patient_journeys_${userId}`) || []) as PatientJourney[])
+        .filter(j => j.verified)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] || null;
+
+// Where each journey step lives in the app
+export const journeyPath = (step: JourneyStep): string => ({
+    [JourneyStep.MEDIKIOSK]: '/journey/medikiosk',
+    [JourneyStep.DIGITAL_TWIN]: '/journey/digital-twin',
+    [JourneyStep.BOOKING]: '/journey/booking',
+    [JourneyStep.REPORTS]: '/journey/reports',
+    [JourneyStep.TIMELINE]: '/journey/reports',
+    [JourneyStep.CONSULTATION]: '/journey/consultation',
+    [JourneyStep.AI_ANALYSIS]: '/journey/care-plan',
+    [JourneyStep.DRAFT_PLAN]: '/journey/care-plan',
+    [JourneyStep.DOCTOR_APPROVAL]: '/journey/care-plan',
+    [JourneyStep.PATIENT_PORTAL]: '/journey/patient-portal',
+    [JourneyStep.RECOVERY]: '/journey/patient-portal',
+} as Partial<Record<JourneyStep, string>>)[step] || '/journey/intake';
+
 export const getJourneyById = (userId: string, journeyId: string): PatientJourney | null => {
     const all: PatientJourney[] = getStorage(`hs_patient_journeys_${userId}`) || [];
     return all.find(j => j.id === journeyId) || null;
 };
+
+// Profiles store 'female' | 'male' | 'other' | 'unspecified' (sign-up) or 'Female' | 'Male' | … (older onboarding)
+export const sexOf = (gender?: string): 'female' | 'male' | null => {
+    const g = gender?.toLowerCase();
+    return g === 'female' || g === 'male' ? g : null;
+};
+
+// ---------- Care pipeline: consultation → AI draft → doctor approval → patient portal ----------
+export type JourneyWithPatient = PatientJourney & { patient: UserProfile };
+
+// Every journey booked with this doctor, newest first (doctor portal)
+export const getDoctorJourneys = (doctorId: string): JourneyWithPatient[] =>
+    getAllUsers()
+        .flatMap(patient => (getStorage(`hs_patient_journeys_${patient.id}`) as PatientJourney[] || []).map(j => ({ ...j, patient })))
+        .filter(j => j.doctorId === doctorId)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+export const findJourney = (journeyId: string): JourneyWithPatient | null => {
+    for (const patient of getAllUsers()) {
+        const j = getJourneyById(patient.id, journeyId);
+        if (j) return { ...j, patient };
+    }
+    return null;
+};
+
+export const getCarePlans = (userId: string): CarePlanDraft[] => getStorage(`hs_careplans_${userId}`) || [];
+export const getCarePlan = (journey: PatientJourney): CarePlanDraft | null =>
+    getCarePlans(journey.userId).find(p => p.id === journey.draftCarePlanId) || null;
+export const saveCarePlan = (userId: string, plan: CarePlanDraft) => {
+    const others = getCarePlans(userId).filter(p => p.id !== plan.id);
+    setStorage(`hs_careplans_${userId}`, [...others, plan]);
+};
+
+// Recording consent: each side writes only its own key, so the two devices never overwrite each other
+export const getConsent = (journeyId: string) => ({
+    patient: getStorage(`hs_consent_patient_${journeyId}`) === true,
+    doctor: getStorage(`hs_consent_doctor_${journeyId}`) === true,
+});
+export const setConsent = (journeyId: string, who: 'patient' | 'doctor', value: boolean) =>
+    setStorage(`hs_consent_${who}_${journeyId}`, value);
+
+// Live transcript lines are appended server-side (shared-store cloudAppendTranscript) and read back here after sync
+// 'room' = single microphone at a physical visit (doctor and patient on one recording)
+export interface TranscriptLine { speaker: 'doctor' | 'patient' | 'room'; text: string; at: string }
+export const getTranscript = (journeyId: string): TranscriptLine[] => getStorage(`hs_transcript_${journeyId}`) || [];
+
+// Daily recovery check-ins, seen by patient and doctor
+export interface RecoveryCheckin { date: string; feeling: number; tookMedicines: boolean; note?: string }
+export const getCheckins = (journeyId: string): RecoveryCheckin[] => getStorage(`hs_checkins_${journeyId}`) || [];
+export const saveCheckin = (journeyId: string, checkin: RecoveryCheckin) => {
+    const others = getCheckins(journeyId).filter(c => c.date !== checkin.date);
+    setStorage(`hs_checkins_${journeyId}`, [...others, checkin].sort((a, b) => a.date.localeCompare(b.date)));
+};
+// Recovery rate over the last 7 check-ins: 60% how the patient feels (1–5), 40% medicine adherence
+export const recoveryRate = (checkins: RecoveryCheckin[]): number | null => {
+    const recent = checkins.slice(-7);
+    if (recent.length === 0) return null;
+    const score = recent.reduce((sum, c) => sum + ((c.feeling - 1) / 4) * 0.6 + (c.tookMedicines ? 0.4 : 0), 0);
+    return Math.round((score / recent.length) * 100);
+};
+
+// Medicine cart (persisted so prescribed medicines can be added after approval)
+export interface CartItem { name: string; quantity: number; price: number }
+export const getCart = (userId: string): CartItem[] => getStorage(`hs_cart_${userId}`) || [];
+export const setCart = (userId: string, items: CartItem[]) => setStorage(`hs_cart_${userId}`, items);
 
 // ---------- Audit Logs ----------
 export const addAuditLog = (log: Omit<AuditLogEntry, 'id' | 'timestamp'>) => {
@@ -652,7 +777,7 @@ export const setTheme = (theme: string) => {
 // Doctor-specific theme (isolated from user)
 export const getDoctorTheme = (): string => {
     if (typeof window === 'undefined') return 'dark';
-    return localStorage.getItem('healthsync_doctor_theme') || 'dark';
+    return localStorage.getItem('healthsync_doctor_theme') || 'light';
 };
 export const setDoctorTheme = (theme: string) => {
     if (typeof window === 'undefined') return;

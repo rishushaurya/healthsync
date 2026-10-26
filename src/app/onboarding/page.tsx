@@ -69,7 +69,7 @@ const ONBOARDING_STEPS = [
             { value: 'nature', label: 'Nature Green', Icon: Activity, desc: 'Fresh & calming' },
             { value: 'calm-blue', label: 'Calm Blue', Icon: Droplets, desc: 'Soothing & relaxing' },
             { value: 'warm', label: 'Warm Wellness', Icon: Heart, desc: 'Cozy & comforting' },
-            { value: 'gradient', label: 'Modern Gradient', Icon: Palette, desc: 'Bold & premium' },
+            { value: 'gradient', label: 'High Contrast', Icon: Palette, desc: 'Maximum readability' },
         ],
     },
 ];
@@ -374,7 +374,7 @@ export default function OnboardingPage() {
                                                     style={{
                                                         padding: '8px 16px', borderRadius: 10,
                                                         border: `1px solid ${profileFields[field.key] === opt ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                                                        background: profileFields[field.key] === opt ? 'rgba(14, 165, 233, 0.12)' : 'var(--bg-card)',
+                                                        background: profileFields[field.key] === opt ? 'rgba(14, 116, 144, 0.12)' : 'var(--bg-card)',
                                                         color: profileFields[field.key] === opt ? 'var(--color-primary)' : 'var(--text-secondary)',
                                                         cursor: 'pointer', fontSize: 13, fontWeight: 500, transition: 'all 0.2s ease',
                                                     }}
@@ -406,7 +406,7 @@ export default function OnboardingPage() {
                                             style={{
                                                 padding: '14px 16px', borderRadius: 14,
                                                 border: `1px solid ${selectedGoals.includes(opt.value) ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                                                background: selectedGoals.includes(opt.value) ? 'rgba(14, 165, 233, 0.12)' : 'var(--bg-card)',
+                                                background: selectedGoals.includes(opt.value) ? 'rgba(14, 116, 144, 0.12)' : 'var(--bg-card)',
                                                 color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s ease',
                                             }}
                                         >

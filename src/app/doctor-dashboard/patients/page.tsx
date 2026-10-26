@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Users, Search, Activity, FileText, ChevronLeft, Heart,
-    Thermometer, Droplets, Phone, Plus, ClipboardList, Calendar, Bot, ShieldAlert, Leaf, MessageSquare, Map as MapIcon
+    Thermometer, Droplets, Phone, Plus, ClipboardList, Calendar, ClipboardCheck, ShieldAlert, Leaf, MessageSquare, Map as MapIcon
 } from 'lucide-react';
 import {
     getCurrentDoctor, getDoctorAppointments, getPatientData,
@@ -106,7 +106,7 @@ export default function PatientsPage() {
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: Activity },
-        { id: 'intake', label: 'AI Intake', icon: Bot },
+        { id: 'intake', label: 'Intake Summary', icon: ClipboardCheck },
         { id: 'activity', label: 'Patient Activity', icon: MapIcon },
         { id: 'vitals', label: 'Vitals', icon: Heart },
         { id: 'reports', label: 'Reports', icon: FileText },
@@ -114,10 +114,10 @@ export default function PatientsPage() {
     ];
 
     const vitalIcons: Record<string, { icon: typeof Heart; color: string }> = {
-        bp: { icon: Heart, color: '#EF4444' },
-        heartRate: { icon: Activity, color: '#F59E0B' },
-        sugar: { icon: Droplets, color: '#0EA5E9' },
-        temperature: { icon: Thermometer, color: '#10B981' },
+        bp: { icon: Heart, color: '#DC2626' },
+        heartRate: { icon: Activity, color: '#D97706' },
+        sugar: { icon: Droplets, color: '#0E7490' },
+        temperature: { icon: Thermometer, color: '#059669' },
     };
 
     if (!doctor) return null;
@@ -211,7 +211,7 @@ export default function PatientsPage() {
                                 {patientData.profile.existingConditions?.length > 0 && (
                                     <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                         {patientData.profile.existingConditions.map(c => (
-                                            <span key={c} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, background: 'rgba(245,158,11,0.1)', color: '#F59E0B', fontWeight: 600 }}>{c}</span>
+                                            <span key={c} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, background: 'rgba(217, 119, 6,0.1)', color: '#D97706', fontWeight: 600 }}>{c}</span>
                                         ))}
                                     </div>
                                 )}
@@ -224,7 +224,7 @@ export default function PatientsPage() {
                                     return (
                                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                                             padding: '10px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
-                                            background: activeTab === tab.id ? 'rgba(14,165,233,0.1)' : 'transparent',
+                                            background: activeTab === tab.id ? 'rgba(14, 116, 144,0.1)' : 'transparent',
                                             color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--text-muted)',
                                             fontWeight: activeTab === tab.id ? 600 : 500, fontSize: 13,
                                             display: 'flex', alignItems: 'center', gap: 6,
@@ -279,7 +279,7 @@ export default function PatientsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {(!patientData.intakeSummaries || patientData.intakeSummaries.length === 0) ? (
                                         <div className="glass-card-static" style={{ padding: 40, textAlign: 'center' }}>
-                                            <Bot size={40} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.3 }} />
+                                            <ClipboardCheck size={40} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.3 }} />
                                             <p style={{ color: 'var(--text-muted)' }}>No AI Intake summaries found for this patient.</p>
                                         </div>
                                     ) : (
@@ -287,7 +287,7 @@ export default function PatientsPage() {
                                             <div key={summary.id} className="glass-card-static" style={{ padding: 20 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
                                                     <h3 style={{ fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <Bot size={18} color="var(--color-primary)" /> Clinical Intake Summary
+                                                        <ClipboardCheck size={18} color="var(--color-primary)" /> Clinical Intake Summary
                                                     </h3>
                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                                         {new Date(summary.date).toLocaleString()} • {summary.consultationType}
@@ -295,7 +295,7 @@ export default function PatientsPage() {
                                                 </div>
 
                                                 {summary.redFlags && summary.redFlags.length > 0 && (
-                                                    <div style={{ background: '#FEF2F2', border: '1px solid #EF4444', borderRadius: 8, padding: 12, marginBottom: 16, display: 'flex', gap: 10, color: '#DC2626' }}>
+                                                    <div style={{ background: '#FEF2F2', border: '1px solid #DC2626', borderRadius: 8, padding: 12, marginBottom: 16, display: 'flex', gap: 10, color: '#DC2626' }}>
                                                         <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: 2 }} />
                                                         <div>
                                                             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Red Flags Detected</div>
@@ -335,7 +335,7 @@ export default function PatientsPage() {
                                                     {summary.consultationType === 'AYUSH' && (
                                                         <>
                                                             <div style={{ gridColumn: '1 / -1', marginTop: 8, paddingTop: 16, borderTop: '1px dashed var(--border-color)' }}>
-                                                                <h4 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#10B981', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <h4 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#059669', display: 'flex', alignItems: 'center', gap: 6 }}>
                                                                     <Leaf size={14} /> AYUSH Profile
                                                                 </h4>
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -409,15 +409,15 @@ export default function PatientsPage() {
                                                     <div style={{ fontWeight: 700, fontSize: 15 }}>{r.fileName}</div>
                                                     <span style={{
                                                         padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                                        background: r.urgencyLevel === 'red' ? 'rgba(239,68,68,0.1)' : r.urgencyLevel === 'amber' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)',
-                                                        color: r.urgencyLevel === 'red' ? '#EF4444' : r.urgencyLevel === 'amber' ? '#F59E0B' : '#10B981',
+                                                        background: r.urgencyLevel === 'red' ? 'rgba(220, 38, 38,0.1)' : r.urgencyLevel === 'amber' ? 'rgba(217, 119, 6,0.1)' : 'rgba(5, 150, 105,0.1)',
+                                                        color: r.urgencyLevel === 'red' ? '#DC2626' : r.urgencyLevel === 'amber' ? '#D97706' : '#059669',
                                                     }}>{r.urgencyLevel || 'green'}</span>
                                                 </div>
                                                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{r.aiSummary}</p>
                                                 {r.technicalSummary && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>{r.technicalSummary}</p>}
                                                 {r.abnormalities?.length > 0 && (
                                                     <div style={{ marginBottom: 6 }}>
-                                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#EF4444' }}>Abnormalities:</span>
+                                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#DC2626' }}>Abnormalities:</span>
                                                         <ul style={{ margin: '4px 0 0 16px', fontSize: 12, color: 'var(--text-secondary)' }}>
                                                             {r.abnormalities.map((a, j) => <li key={j}>{a}</li>)}
                                                         </ul>
@@ -439,7 +439,7 @@ export default function PatientsPage() {
                                             {(['consultation', 'follow-up', 'general'] as const).map(t => (
                                                 <button key={t} onClick={() => setNoteType(t)} style={{
                                                     padding: '5px 12px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border-color)',
-                                                    background: noteType === t ? 'rgba(14,165,233,0.1)' : 'var(--bg-card)',
+                                                    background: noteType === t ? 'rgba(14, 116, 144,0.1)' : 'var(--bg-card)',
                                                     color: noteType === t ? 'var(--color-primary)' : 'var(--text-muted)',
                                                     cursor: 'pointer', fontWeight: noteType === t ? 600 : 400, textTransform: 'capitalize',
                                                 }}>{t}</button>
@@ -462,8 +462,8 @@ export default function PatientsPage() {
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                     <span style={{
                                                         padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize',
-                                                        background: n.type === 'consultation' ? 'rgba(14,165,233,0.1)' : n.type === 'follow-up' ? 'rgba(139,92,246,0.1)' : 'rgba(128,128,128,0.1)',
-                                                        color: n.type === 'consultation' ? '#0EA5E9' : n.type === 'follow-up' ? '#8B5CF6' : 'var(--text-muted)',
+                                                        background: n.type === 'consultation' ? 'rgba(14, 116, 144,0.1)' : n.type === 'follow-up' ? 'rgba(79, 107, 138,0.1)' : 'rgba(128,128,128,0.1)',
+                                                        color: n.type === 'consultation' ? '#0E7490' : n.type === 'follow-up' ? '#4F6B8A' : 'var(--text-muted)',
                                                     }}>{n.type}</span>
                                                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.date).toLocaleString()}</span>
                                                 </div>
@@ -493,8 +493,8 @@ export default function PatientsPage() {
                                                             <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
                                                             <span style={{
                                                                 padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                                                                background: j.status === 'active' ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)',
-                                                                color: j.status === 'active' ? '#10B981' : '#64748B'
+                                                                background: j.status === 'active' ? 'rgba(5, 150, 105,0.1)' : 'rgba(100,116,139,0.1)',
+                                                                color: j.status === 'active' ? '#059669' : '#64748B'
                                                             }}>{j.status}</span>
                                                         </div>
                                                         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>Condition: {j.condition}</div>
@@ -511,7 +511,7 @@ export default function PatientsPage() {
                                     {/* Digital Twin Chat */}
                                     <div className="glass-card-static" style={{ padding: 20 }}>
                                         <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <MessageSquare size={18} style={{ color: '#8B5CF6' }} /> Recent AI Assistant Chats
+                                            <MessageSquare size={18} style={{ color: '#4F6B8A' }} /> Recent AI Assistant Chats
                                         </h3>
                                         {(!patientData.chatHistory || patientData.chatHistory.length === 0) ? (
                                             <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>No chat history available</p>

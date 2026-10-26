@@ -1,174 +1,149 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Upload, FileText, Brain, AlertTriangle, CheckCircle, XCircle, Loader2, Plus, ArrowRight, X } from 'lucide-react';
-import { getReports, addReport, generateId, getCurrentUser, getActiveJourney, saveJourney, JourneyStep, type MedicalReport } from '@/lib/store';
+import { Upload, FileText, AlertTriangle, Loader2, ArrowRight, XCircle } from 'lucide-react';
+import {
+    getReports, addReport, generateId, getCurrentUser, getActiveJourney, saveJourney, autoShareReportsWithDoctor,
+    JourneyStep, type MedicalReport, type PatientJourney,
+} from '@/lib/store';
 import { formatContextForAI, buildAIContext } from '@/lib/ai-context';
+
+const URGENCY: Record<string, { cls: string; label: string }> = {
+    red: { cls: 'triage-red', label: 'Needs attention soon' },
+    amber: { cls: 'triage-amber', label: 'Discuss with your doctor' },
+    green: { cls: 'triage-green', label: 'Mostly normal' },
+};
+
+const readFile = (file: File): Promise<string> => new Promise(resolve => {
+    const reader = new FileReader();
+    const tag = file.type.startsWith('image/') ? 'IMAGE_BASE64' : file.type === 'application/pdf' ? 'PDF_BASE64' : null;
+    if (tag) {
+        reader.onload = e => {
+            const base64 = e.target?.result as string;
+            resolve(`[${tag}]${base64.split(',')[1] || base64}[/${tag}]\nFile: ${file.name}\nType: ${file.type}`);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        reader.onload = e => resolve((e.target?.result as string) || 'Unable to read file content');
+        reader.readAsText(file);
+    }
+});
 
 export default function JourneyReportsPage() {
     const router = useRouter();
+    const [journey, setJourney] = useState<PatientJourney | null>(null);
     const [reports, setReportsList] = useState<MedicalReport[]>([]);
     const [analyzing, setAnalyzing] = useState(false);
+    const [rejected, setRejected] = useState('');
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const user = getCurrentUser();
-        if (!user) {
-            router.push('/auth');
-            return;
-        }
+        if (!user) { router.push('/auth'); return; }
+        setJourney(getActiveJourney(user.id));
         setReportsList(getReports());
     }, [router]);
 
-    const handleContinue = () => {
-        const user = getCurrentUser();
-        if (user) {
-            const journey = getActiveJourney(user.id);
-            if (journey) {
-                const updated = { ...journey, currentStep: JourneyStep.TIMELINE, updatedAt: new Date().toISOString() };
-                saveJourney(updated);
-            }
-        }
-        router.push('/journey/timeline');
-    };
-
-    const extractTextFromFile = (file: File): Promise<string> => {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            const isImage = file.type.startsWith('image/');
-            const isPdf = file.type === 'application/pdf';
-            if (isImage) {
-                reader.onload = (e) => {
-                    const base64 = e.target?.result as string;
-                    resolve(`[IMAGE_BASE64]${base64.split(',')[1] || base64}[/IMAGE_BASE64]\nFile: ${file.name}\nType: ${file.type}`);
-                };
-                reader.readAsDataURL(file);
-            } else if (isPdf) {
-                reader.onload = (e) => {
-                    const base64 = e.target?.result as string;
-                    resolve(`[PDF_BASE64]${base64.split(',')[1] || base64}[/PDF_BASE64]\nFile: ${file.name}\nType: ${file.type}`);
-                };
-                reader.readAsDataURL(file);
-            } else {
-                reader.onload = (e) => {
-                    resolve((e.target?.result as string) || 'Unable to read file content');
-                };
-                reader.readAsText(file);
-            }
-        });
-    };
-
     const analyzeReport = async (file: File) => {
         setAnalyzing(true);
+        setRejected('');
         try {
-            const reportText = await extractTextFromFile(file);
-            
-            // Mocking analysis for speed since we're simulating the journey
-            setTimeout(() => {
-                const report: MedicalReport = {
-                    id: generateId(),
-                    userId: getCurrentUser()?.id || 'unknown',
-                    fileName: file.name,
-                    uploadDate: new Date().toISOString(),
-                    fileData: reportText.substring(0, 100),
-                    aiSummary: 'Summary of ' + file.name,
-                    technicalSummary: 'Technical details...',
-                    abnormalities: [],
-                    recommendations: ['Discuss with doctor'],
-                    urgencyLevel: 'green',
-                    fileType: file.type,
-                    category: 'other',
-                    sharedWith: [],
-                };
-                addReport(report);
-                setReportsList(getReports());
-                setAnalyzing(false);
-            }, 1500);
-
-        } catch (err) {
-            console.error(err);
+            const reportText = await readFile(file);
+            const res = await fetch('/api/ai/analyze-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportText, fileName: file.name, userContext: formatContextForAI(buildAIContext()) }),
+            });
+            const { analysis, error } = await res.json();
+            if (!analysis) throw new Error(error);
+            if (analysis.isValidReport === false) {
+                setRejected(analysis.validationMessage);
+                return;
+            }
+            const user = getCurrentUser();
+            addReport({
+                id: generateId(), userId: user?.id || 'unknown', fileName: file.name, uploadDate: new Date().toISOString(),
+                fileData: reportText.substring(0, 5000), aiSummary: analysis.laymanSummary || '', technicalSummary: analysis.technicalSummary || '',
+                abnormalities: analysis.abnormalities || [], recommendations: analysis.recommendations || [],
+                urgencyLevel: analysis.urgencyLevel || 'green', fileType: file.type, journeyId: journey?.id, sharedWith: [],
+            });
+            // The booked doctor sees reports before the consultation
+            if (user && journey?.doctorId) autoShareReportsWithDoctor(user.id, journey.doctorId);
+            setReportsList(getReports());
+        } catch {
+            setRejected('We couldn’t read that file. Try a clearer photo or a PDF.');
+        } finally {
             setAnalyzing(false);
         }
     };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) analyzeReport(file);
+    const handleContinue = () => {
+        if (journey) saveJourney({ ...journey, currentStep: JourneyStep.CONSULTATION, updatedAt: new Date().toISOString() });
+        router.push('/journey/consultation');
     };
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setDragOver(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) analyzeReport(file);
-    };
+    const onFiles = (files: FileList | null) => { const f = files?.[0]; if (f) analyzeReport(f); };
 
     return (
-        <div style={{ maxWidth: 800, margin: '0 auto', padding: 24, paddingBottom: 100 }}>
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>Upload Medical Reports (Optional)</h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Do you have any past prescriptions, lab tests, or imaging files to share? 
-                    Our AI will analyze them and prepare them for your doctor.
-                </p>
-            </div>
+        <div style={{ maxWidth: 820, margin: '0 auto' }}>
+            <h1 className="page-title">Reports for your doctor <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: 18 }}>(optional)</span></h1>
+            <p className="page-subtitle">Upload lab tests, scans or old prescriptions. Each one is read and explained, and shared with your doctor before you meet.</p>
 
-            {/* Upload Area */}
-            <motion.div
-                className="glass-card-static"
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                style={{
-                    padding: 40, textAlign: 'center', marginBottom: 24,
-                    border: dragOver ? '2px dashed var(--color-primary)' : '1px solid var(--glass-border)',
-                    background: dragOver ? 'rgba(14, 165, 233, 0.06)' : undefined,
-                    transition: 'all 0.3s ease', cursor: 'pointer',
-                }}
+            <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); onFiles(e.dataTransfer.files); }}
+                disabled={analyzing}
+                style={{
+                    width: '100%', marginTop: 20, padding: 36, borderRadius: 12, font: 'inherit', color: 'var(--text-secondary)',
+                    border: `2px dashed ${dragOver ? 'var(--color-primary)' : 'var(--border-strong)'}`,
+                    background: dragOver ? 'var(--primary-soft)' : 'var(--bg-card)',
+                }}
             >
-                <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.png,.jpeg" onChange={handleFileUpload} style={{ display: 'none' }} />
-                {analyzing ? (
-                    <div>
-                        <Loader2 size={48} style={{ color: 'var(--color-primary)', animation: 'rotate-slow 1s linear infinite', marginBottom: 16 }} />
-                        <h3 style={{ fontWeight: 700, marginBottom: 8 }}>Analyzing Document...</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Please wait.</p>
-                    </div>
-                ) : (
-                    <div>
-                        <Upload size={48} style={{ color: 'var(--color-primary)', marginBottom: 16, opacity: 0.7 }} />
-                        <h3 style={{ fontWeight: 700, marginBottom: 8 }}>Drag & drop or click to upload</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Supports PDF, JPG, PNG.</p>
-                    </div>
-                )}
-            </motion.div>
+                {analyzing ? <Loader2 size={32} className="animate-spin" color="var(--color-primary)" /> : <Upload size={32} color="var(--color-primary)" />}
+                <span style={{ display: 'block', fontWeight: 700, color: 'var(--text-primary)', marginTop: 10 }}>{analyzing ? 'Reading your report…' : 'Drag a file here or choose one'}</span>
+                <span style={{ fontSize: 14 }}>PDF, JPG or PNG</span>
+            </button>
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.png,.jpeg,.txt" onChange={e => onFiles(e.target.files)} hidden />
 
-            {/* Uploaded Reports List */}
-            {reports.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700 }}>Uploaded Files</h3>
-                    {reports.map((report) => (
-                        <div key={report.id} className="glass-card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(14, 165, 233, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <FileText size={20} style={{ color: 'var(--color-primary)' }} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>{report.fileName}</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Analyzed and attached to journey</div>
-                            </div>
-                            <CheckCircle size={20} style={{ color: '#10B981' }} />
-                        </div>
-                    ))}
+            {rejected && (
+                <div role="alert" className="triage-red" style={{ marginTop: 14, padding: 14, borderRadius: 10, display: 'flex', gap: 10 }}>
+                    <XCircle size={20} color="var(--color-danger)" style={{ flexShrink: 0 }} /> {rejected}
                 </div>
             )}
 
-            {/* Floating Continue Button */}
-            <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 100 }}>
-                <button onClick={handleContinue} className="btn-primary" style={{ padding: '14px 28px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 8px 32px rgba(14, 165, 233, 0.4)' }}>
-                    Continue to Summary <ArrowRight size={20} />
+            {reports.length > 0 && (
+                <section style={{ marginTop: 24, display: 'grid', gap: 12 }}>
+                    <h2 style={{ fontSize: 17, fontWeight: 700 }}>Your reports</h2>
+                    {reports.slice().reverse().map(r => {
+                        const u = URGENCY[r.urgencyLevel || 'green'] || URGENCY.green;
+                        return (
+                            <article key={r.id} className="card" style={{ padding: 18 }}>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <FileText size={20} color="var(--color-primary)" />
+                                    <strong style={{ flex: 1, minWidth: 160 }}>{r.fileName}</strong>
+                                    <span className={`status-badge ${u.cls}`}>{u.label}</span>
+                                </div>
+                                {r.aiSummary && <p style={{ marginTop: 10, color: 'var(--text-secondary)', fontSize: 15 }}>{r.aiSummary}</p>}
+                                {r.abnormalities?.length > 0 && (
+                                    <p style={{ marginTop: 8, fontSize: 14, display: 'flex', gap: 6 }}>
+                                        <AlertTriangle size={16} color="var(--color-warning)" style={{ flexShrink: 0, marginTop: 2 }} />
+                                        <span><strong>Outside normal range:</strong> {r.abnormalities.join(', ')}</span>
+                                    </p>
+                                )}
+                            </article>
+                        );
+                    })}
+                </section>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 28 }}>
+                <button onClick={handleContinue} className="btn-primary" disabled={analyzing}>
+                    {reports.length ? 'Continue to consultation' : 'Skip — I have no reports'} <ArrowRight size={18} />
                 </button>
             </div>
         </div>

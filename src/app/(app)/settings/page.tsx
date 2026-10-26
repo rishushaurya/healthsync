@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Settings as SettingsIcon, Palette, Languages, User, Bell, Shield,
-    Moon, Sun, Droplets, Sparkles, LogOut, Trash2, Download, ChevronRight, Leaf, Flame
+    Moon, Sun, Droplets, Contrast, LogOut, Trash2, Download, ChevronRight, Leaf, Flame
 } from 'lucide-react';
 import { getCurrentUser, setCurrentUser, setTheme as setThemeStore, clearCurrentUser, exportUserData, deleteUserData } from '@/lib/store';
 import { useLanguage } from '@/lib/LanguageProvider';
@@ -17,7 +17,7 @@ const themes = [
     { value: 'nature', label: 'Nature Green', icon: Leaf, preview: '#F0FDF4' },
     { value: 'warm', label: 'Warm Wellness', icon: Flame, preview: '#FFFBF5' },
     { value: 'calm-blue', label: 'Calm Blue', icon: Droplets, preview: '#0C1425' },
-    { value: 'gradient', label: 'Modern Gradient', icon: Sparkles, preview: '#0F0720' },
+    { value: 'gradient', label: 'High Contrast', icon: Contrast, preview: '#FFFFFF' },
 ];
 
 
@@ -179,7 +179,7 @@ export default function SettingsPage() {
                             <button key={theme.value} onClick={() => handleThemeChange(theme.value)} style={{
                                 padding: '14px 16px', borderRadius: 14,
                                 border: `2px solid ${activeTheme === theme.value ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                                background: activeTheme === theme.value ? 'rgba(14, 165, 233, 0.08)' : 'var(--bg-card)',
+                                background: activeTheme === theme.value ? 'rgba(14, 116, 144, 0.08)' : 'var(--bg-card)',
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
                                 transition: 'all 0.3s ease', color: 'var(--text-primary)',
                             }}>
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                         <button key={lang.value} onClick={() => handleLangChange(lang.value)} style={{
                             padding: '12px 16px', borderRadius: 12,
                             border: `2px solid ${activeLang === lang.value ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                            background: activeLang === lang.value ? 'rgba(14, 165, 233, 0.08)' : 'var(--bg-card)',
+                            background: activeLang === lang.value ? 'rgba(14, 116, 144, 0.08)' : 'var(--bg-card)',
                             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
                             color: 'var(--text-primary)', fontSize: 14, fontWeight: 500,
                         }}>
@@ -236,16 +236,16 @@ export default function SettingsPage() {
                         padding: '14px 16px', borderRadius: 12, border: '1px solid var(--border-color)',
                         background: 'var(--bg-card)', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 10,
-                        color: '#F59E0B', fontSize: 14,
+                        color: '#D97706', fontSize: 14,
                     }}>
                         <LogOut size={16} /> Sign Out
                     </button>
                     <button onClick={handleDeleteAccount} style={{
                         padding: '14px 16px', borderRadius: 12,
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        background: 'rgba(239, 68, 68, 0.04)', cursor: 'pointer',
+                        border: '1px solid rgba(220, 38, 38, 0.2)',
+                        background: 'rgba(220, 38, 38, 0.04)', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 10,
-                        color: '#EF4444', fontSize: 14,
+                        color: '#DC2626', fontSize: 14,
                     }}>
                         <Trash2 size={16} /> Delete Account & Data
                     </button>
@@ -254,8 +254,8 @@ export default function SettingsPage() {
 
             <div style={{
                 padding: '16px 20px', borderRadius: 14,
-                background: 'rgba(14, 165, 233, 0.04)',
-                border: '1px solid rgba(14, 165, 233, 0.1)',
+                background: 'rgba(14, 116, 144, 0.04)',
+                border: '1px solid rgba(14, 116, 144, 0.1)',
                 fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6,
             }}>
                 Your data is encrypted (AES-256) and stored in compliance with<br />

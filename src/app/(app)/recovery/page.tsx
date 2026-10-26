@@ -10,11 +10,11 @@ import {
 import { getJourneys, addJourney, updateJourney, setJourneys, generateId, getCurrentUser, getPatientPrescriptions, type HealthJourney, type TimelineStep, type Medication, type DietItem, type Prescription } from '@/lib/store';
 
 const typeIcons: Record<string, { icon: typeof CheckCircle; color: string }> = {
-    checkup: { icon: Stethoscope, color: '#0EA5E9' },
-    medication: { icon: Pill, color: '#8B5CF6' },
-    diet: { icon: Utensils, color: '#10B981' },
-    exercise: { icon: Activity, color: '#F59E0B' },
-    lifestyle: { icon: TrendingUp, color: '#EC4899' },
+    checkup: { icon: Stethoscope, color: '#0E7490' },
+    medication: { icon: Pill, color: '#4F6B8A' },
+    diet: { icon: Utensils, color: '#059669' },
+    exercise: { icon: Activity, color: '#D97706' },
+    lifestyle: { icon: TrendingUp, color: '#B4436C' },
 };
 
 export default function RecoveryPage() {
@@ -193,7 +193,7 @@ Include 6-10 timeline steps, relevant medications, and a full diet plan with 4 m
                                 setJourneys(updated);
                                 setJourneysList(updated);
                             }
-                        }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#EF4444' }}>
+                        }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#DC2626' }}>
                             <Trash2 size={16} /> Clear Plan
                         </button>
                     )}
@@ -309,11 +309,11 @@ Include 6-10 timeline steps, relevant medications, and a full diet plan with 4 m
                                             {med.time.map((t, ti) => (
                                                 <button key={ti} onClick={() => toggleMedTaken(med.id, ti)} style={{
                                                     width: 28, height: 28, borderRadius: 8,
-                                                    border: `2px solid ${med.taken[ti] ? '#10B981' : 'var(--border-color)'}`,
-                                                    background: med.taken[ti] ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                                    border: `2px solid ${med.taken[ti] ? '#059669' : 'var(--border-color)'}`,
+                                                    background: med.taken[ti] ? 'rgba(5, 150, 105, 0.15)' : 'transparent',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                                                 }}>
-                                                    {med.taken[ti] && <CheckCircle size={16} style={{ color: '#10B981' }} />}
+                                                    {med.taken[ti] && <CheckCircle size={16} style={{ color: '#059669' }} />}
                                                 </button>
                                             ))}
                                             <div>
@@ -344,7 +344,7 @@ Include 6-10 timeline steps, relevant medications, and a full diet plan with 4 m
                                 <>
                                     <div style={{
                                         padding: '12px 16px', borderRadius: 12,
-                                        background: 'rgba(14, 165, 233, 0.06)', border: '1px solid rgba(14, 165, 233, 0.12)',
+                                        background: 'rgba(14, 116, 144, 0.06)', border: '1px solid rgba(14, 116, 144, 0.12)',
                                         fontSize: 14, color: 'var(--text-secondary)',
                                     }}>
                                         AI-personalized diet plan for your condition.
@@ -354,8 +354,8 @@ Include 6-10 timeline steps, relevant medications, and a full diet plan with 4 m
                                         <motion.div key={meal.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="glass-card" style={{ padding: 20 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Utensils size={16} style={{ color: '#10B981' }} />
+                                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(5, 150, 105, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Utensils size={16} style={{ color: '#059669' }} />
                                                     </div>
                                                     <div>
                                                         <div style={{ fontWeight: 600, fontSize: 15 }}>{meal.meal}</div>
@@ -409,7 +409,7 @@ Include 6-10 timeline steps, relevant medications, and a full diet plan with 4 m
                                                 background: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left',
                                                 display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s',
                                             }}>
-                                                <ClipboardList size={16} style={{ color: '#8B5CF6', flexShrink: 0 }} />
+                                                <ClipboardList size={16} style={{ color: '#4F6B8A', flexShrink: 0 }} />
                                                 <div>
                                                     <div style={{ fontWeight: 600, fontSize: 13 }}>{rx.diagnosis}</div>
                                                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>by {rx.doctorName} - {rx.medicines.length} medicine(s)</div>

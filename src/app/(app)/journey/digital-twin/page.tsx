@@ -24,11 +24,12 @@ export default function JourneyDigitalTwinPage() {
         if (user) {
             const journey = getActiveJourney(user.id);
             if (journey) {
-                const updated = { ...journey, currentStep: JourneyStep.REPORTS, updatedAt: new Date().toISOString() };
+                const updated = { ...journey, currentStep: JourneyStep.BOOKING, updatedAt: new Date().toISOString() };
                 saveJourney(updated);
             }
         }
-        router.push('/journey/reports');
+        // Workflow: Digital Twin → choose / book the recommended doctor
+        router.push('/journey/booking');
     };
 
     return (
@@ -36,7 +37,7 @@ export default function JourneyDigitalTwinPage() {
             <DigitalTwinContent />
             
             <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 100 }}>
-                <button onClick={handleContinue} className="btn-primary" style={{ padding: '14px 28px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 8px 32px rgba(14, 165, 233, 0.4)' }}>
+                <button onClick={handleContinue} className="btn-primary" style={{ padding: '14px 28px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-md)' }}>
                     Save & Continue <ArrowRight size={20} />
                 </button>
             </div>

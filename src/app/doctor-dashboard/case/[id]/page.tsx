@@ -1,242 +1,246 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { 
-    getJourneys, 
-    setJourneys, 
-    getAllUsers, 
-    type HealthJourney, 
-    type UserProfile 
+import { ArrowLeft, BadgeCheck, Plus, Trash2, Video, Mic, Loader2, AlertTriangle, FileText, HeartPulse, ClipboardList, Activity } from 'lucide-react';
+import {
+    findJourney, getCarePlan, getCurrentDoctor, getPatientData, getTranscript, getCheckins, recoveryRate,
+    type JourneyWithPatient, type CarePlanDraft, type DoctorAccount, type Vital, type MedicalReport, type TranscriptLine, type RecoveryCheckin,
 } from '@/lib/store';
-import { 
-    CheckCircle, 
-    AlertTriangle, 
-    Activity, 
-    Pill, 
-    Clock, 
-    Check, 
-    ArrowLeft,
-    Calendar,
-    Thermometer,
-    HeartPulse,
-    ListChecks
-} from 'lucide-react';
+import { approveCarePlan, createCarePlanDraft } from '@/lib/care-plan';
 
-export default function DoctorCaseApprovalPage() {
+type Medicine = CarePlanDraft['medicines'][number];
+const EMPTY_MED: Medicine = { name: '', dosage: '', frequency: '', duration: '', notes: '' };
+const label = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+
+export default function DoctorCaseReviewPage() {
     const router = useRouter();
-    const params = useParams();
-    const id = params?.id as string;
+    const { id } = useParams<{ id: string }>();
+    const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
+    const [journey, setJourney] = useState<JourneyWithPatient | null>(null);
+    const [plan, setPlan] = useState<CarePlanDraft | null>(null);
+    const [vitals, setVitals] = useState<Vital[]>([]);
+    const [reports, setReports] = useState<MedicalReport[]>([]);
+    const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
+    const [checkins, setCheckins] = useState<RecoveryCheckin[]>([]);
+    const [intake, setIntake] = useState<{ chiefComplaint?: string; hpi?: string; redFlags?: string[] } | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const [notFound, setNotFound] = useState(false);
 
-    const [journey, setJourney] = useState<HealthJourney | null>(null);
-    const [patient, setPatient] = useState<UserProfile | null>(null);
-    const [editedJourney, setEditedJourney] = useState<HealthJourney | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        if (!id) return;
-        const allJourneys = getJourneys();
-        const j = allJourneys.find(j => j.id === id);
-        if (j) {
-            setJourney(j);
-            setEditedJourney(j);
-            const allUsers = getAllUsers();
-            setPatient(allUsers.find(u => u.id === j.userId) || null);
-        }
-    }, [id]);
-
-    const handleApprove = () => {
-        if (!editedJourney) return;
-        setIsSaving(true);
-        
-        const allJourneys = getJourneys();
-        const updatedJourneys = allJourneys.map(j => 
-            j.id === editedJourney.id ? { ...editedJourney, verified: true } : j
-        );
-        
-        setJourneys(updatedJourneys);
-        
-        setTimeout(() => {
-            router.push('/doctor-dashboard');
-        }, 1000);
+    const load = () => {
+        const doc = getCurrentDoctor();
+        const j = findJourney(id);
+        if (!doc || !j) { setNotFound(true); return; }
+        const data = getPatientData(j.patient.id, doc.id);
+        setDoctor(doc);
+        setJourney(j);
+        setPlan(prev => prev && prev.id === j.draftCarePlanId && prev.status === 'draft' ? prev : getCarePlan(j)); // keep unsaved edits
+        setVitals(((data?.vitals || []) as Vital[]).slice(-8).reverse());
+        setReports((data?.reports || []) as MedicalReport[]);
+        setIntake(data?.intakeSummaries.at(-1) || null);
+        setTranscript(getTranscript(j.id));
+        setCheckins(getCheckins(j.id));
     };
 
-    const handleEditNotes = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        if (editedJourney) {
-            setEditedJourney({ ...editedJourney, doctorNotes: e.target.value });
-        }
+    useEffect(load, [id]);
+
+    if (notFound) return <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>This case isn’t available. It may belong to another doctor.</p>;
+    if (!journey || !doctor) return <div className="spinner" style={{ margin: '60px auto' }} />;
+
+    const p = journey.patient;
+    const approved = plan?.status === 'approved';
+    const online = journey.consultationMode !== 'Physical';
+    const rate = recoveryRate(checkins);
+
+    const update = (patch: Partial<CarePlanDraft>) => setPlan(prev => prev && { ...prev, ...patch });
+    const updateMed = (i: number, patch: Partial<Medicine>) => update({ medicines: plan!.medicines.map((m, j) => j === i ? { ...m, ...patch } : m) });
+
+    const draftFromRecords = async () => {
+        setBusy(true);
+        setError('');
+        try {
+            await createCarePlanDraft(journey, doctor, online ? 'online' : 'physical', new Date().toISOString());
+            load();
+        } catch { setError('Could not draft the care plan. Try again.'); }
+        setBusy(false);
     };
 
-    if (!journey || !editedJourney) return <div style={{ padding: 40, textAlign: 'center' }}>Loading case...</div>;
+    const approve = () => {
+        if (!plan) return;
+        const meds = plan.medicines.filter(m => m.name.trim());
+        if (meds.some(m => !m.dosage.trim() || !m.frequency.trim())) {
+            setError('Every medicine needs a dose and when to take it.');
+            return;
+        }
+        approveCarePlan(journey, doctor, { ...plan, medicines: meds });
+        router.push('/doctor-dashboard');
+    };
 
     return (
-        <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 60 }}>
-            
-            <button 
-                onClick={() => router.back()} 
-                style={{ 
-                    display: 'flex', alignItems: 'center', gap: 8, 
-                    background: 'none', border: 'none', color: 'var(--text-secondary)',
-                    cursor: 'pointer', marginBottom: 24, fontSize: 14 
-                }}
-            >
-                <ArrowLeft size={16} /> Back to Dashboard
-            </button>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+            <Link href="/doctor-dashboard" className="btn-ghost" style={{ marginBottom: 12, paddingLeft: 0 }}><ArrowLeft size={16} /> Dashboard</Link>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <div>
-                    <h1 style={{ fontSize: 28, fontWeight: 800 }}>Review Care Plan</h1>
-                    <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                        Patient: {patient?.name || 'Unknown'} • Case: {journey.condition}
-                    </p>
+                    <h1 className="page-title">{p.name}</h1>
+                    <p className="page-subtitle">{[p.age && `${p.age} yrs`, p.gender, p.phone].filter(Boolean).join(' · ')} — {journey.reasonForVisit || 'Consultation'} ({journey.pathway || 'Allopathic'})</p>
                 </div>
-                <div style={{ 
-                    padding: '6px 12px', 
-                    borderRadius: 8, 
-                    background: 'rgba(245, 158, 11, 0.1)', 
-                    color: '#F59E0B', 
-                    fontWeight: 600, 
-                    fontSize: 13,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                }}>
-                    <AlertTriangle size={14} /> Pending Approval
-                </div>
+                {approved
+                    ? <span className="status-badge status-verified"><BadgeCheck size={14} /> Approved and sent</span>
+                    : plan ? <span className="status-badge status-pending"><AlertTriangle size={14} /> Awaiting your approval</span>
+                        : <span className="status-badge status-active">Consultation pending</span>}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
-                
-                {/* Left Column: Plan Details */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    
-                    {/* AI Summary */}
-                    <div className="glass-card-static" style={{ padding: 24 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Activity size={18} style={{ color: 'var(--color-primary)' }} /> AI Consultation Summary
-                        </h2>
-                        <div style={{ fontSize: 15, color: 'var(--text-secondary)', lineHeight: 1.6, background: 'var(--bg-secondary)', padding: 16, borderRadius: 12 }}>
-                            {journey.aiSummary || 'No AI summary available for this consultation.'}
-                        </div>
-                    </div>
+            {journey.redFlagDetected && (
+                <div className="triage-red" role="alert" style={{ padding: 14, borderRadius: 10, marginTop: 16, display: 'flex', gap: 10 }}>
+                    <AlertTriangle size={18} color="var(--color-danger)" /> Patient reported warning-sign symptoms during check-in{intake?.redFlags?.length ? `: ${intake.redFlags.join(', ')}` : ''}.
+                </div>
+            )}
 
-                    {/* Timeline */}
-                    <div className="glass-card-static" style={{ padding: 24 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Calendar size={18} style={{ color: 'var(--color-primary)' }} /> Proposed Timeline
-                        </h2>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {editedJourney.timeline.map((step, i) => (
-                                <div key={step.id} style={{ display: 'flex', gap: 16 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                        <div style={{ 
-                                            width: 28, height: 28, borderRadius: '50%', 
-                                            background: 'rgba(14, 165, 233, 0.1)', 
-                                            color: 'var(--color-primary)', 
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            fontWeight: 700, fontSize: 12
-                                        }}>
-                                            D{step.day}
-                                        </div>
-                                        {i < editedJourney.timeline.length - 1 && (
-                                            <div style={{ width: 2, flex: 1, background: 'var(--border-color)', margin: '4px 0' }} />
-                                        )}
-                                    </div>
-                                    <div style={{ flex: 1, paddingBottom: 16 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 15 }}>{step.title}</div>
-                                        <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>{step.description}</div>
-                                    </div>
-                                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, marginTop: 18, alignItems: 'start' }}>
+                {/* Pre-consultation record */}
+                <div style={{ display: 'grid', gap: 16 }}>
+                    <section className="card" style={{ padding: 20 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', gap: 8, alignItems: 'center' }}><ClipboardList size={18} /> Check-in</h2>
+                        <dl style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px 12px', marginTop: 12, fontSize: 14.5 }}>
+                            {intake?.chiefComplaint && <><dt style={{ color: 'var(--text-muted)' }}>Complaint</dt><dd>{intake.chiefComplaint}</dd></>}
+                            {intake?.hpi && <><dt style={{ color: 'var(--text-muted)' }}>History</dt><dd>{intake.hpi}</dd></>}
+                            {!intake && journey.physicianSummary && <><dt style={{ color: 'var(--text-muted)' }}>Summary</dt><dd>{journey.physicianSummary}</dd></>}
+                            {Object.entries(journey.intakeAnswers || {}).map(([k, v]) => (
+                                <div key={k} style={{ display: 'contents' }}><dt style={{ color: 'var(--text-muted)' }}>{label(k)}</dt><dd>{String(v)}</dd></div>
                             ))}
-                        </div>
-                    </div>
+                        </dl>
+                    </section>
 
-                    {/* Medications */}
-                    <div className="glass-card-static" style={{ padding: 24 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Pill size={18} style={{ color: 'var(--color-primary)' }} /> Prescribed Medications
-                        </h2>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {editedJourney.medications.map((med, i) => (
-                                <div key={med.id} style={{ 
-                                    padding: 16, borderRadius: 12, border: '1px solid var(--border-color)',
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: 15 }}>{med.name}</div>
-                                        <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>{med.dosage} • {med.frequency}</div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6 }}>
-                                        {med.time.map((t, j) => (
-                                            <span key={j} style={{ padding: '4px 10px', background: 'var(--bg-secondary)', borderRadius: 12, fontSize: 12, fontWeight: 500 }}>
-                                                {t}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                            {editedJourney.medications.length === 0 && (
-                                <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No medications prescribed.</div>
-                            )}
-                        </div>
-                    </div>
+                    <section className="card" style={{ padding: 20 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', gap: 8, alignItems: 'center' }}><HeartPulse size={18} /> Recent vitals</h2>
+                        {vitals.length === 0 ? <p style={{ color: 'var(--text-muted)', marginTop: 8, fontSize: 14 }}>No vitals logged.</p> : (
+                            <ul style={{ listStyle: 'none', marginTop: 10, display: 'grid', gap: 6, fontSize: 14.5 }}>
+                                {vitals.map(v => <li key={v.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-muted)' }}>{label(v.type)} · {v.date}</span><strong>{v.value} {v.unit}</strong></li>)}
+                            </ul>
+                        )}
+                    </section>
+
+                    <section className="card" style={{ padding: 20 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', gap: 8, alignItems: 'center' }}><FileText size={18} /> Shared reports ({reports.length})</h2>
+                        {reports.map(r => (
+                            <div key={r.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', fontSize: 14.5 }}>
+                                <strong>{r.fileName}</strong> <span className={`status-badge triage-${r.urgencyLevel || 'green'}`} style={{ marginLeft: 6 }}>{r.urgencyLevel || 'green'}</span>
+                                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>{r.technicalSummary || r.aiSummary}</p>
+                                {r.abnormalities?.length > 0 && <p style={{ marginTop: 4 }}><strong>Abnormal:</strong> {r.abnormalities.join(', ')}</p>}
+                            </div>
+                        ))}
+                    </section>
+
+                    {transcript.length > 0 && (
+                        <details className="card" style={{ padding: 20 }}>
+                            <summary style={{ fontWeight: 700, cursor: 'pointer' }}>Consultation transcript ({transcript.length} lines, recorded with consent)</summary>
+                            <div style={{ marginTop: 12, display: 'grid', gap: 6, fontSize: 14, maxHeight: 320, overflowY: 'auto' }}>
+                                {transcript.map((l, i) => <p key={i}><strong style={{ textTransform: 'capitalize' }}>{l.speaker}:</strong> {l.text}</p>)}
+                            </div>
+                        </details>
+                    )}
                 </div>
 
-                {/* Right Column: Vitals & Approval */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    
-                    {/* Vitals Snapshot */}
-                    <div className="glass-card-static" style={{ padding: 20 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Vitals Snapshot</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
-                                    <HeartPulse size={14} color="#EF4444" /> Blood Pressure
-                                </div>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>120/80</div>
+                {/* Care plan */}
+                <div style={{ display: 'grid', gap: 16 }}>
+                    {!plan ? (
+                        <section className="card" style={{ padding: 22 }}>
+                            <h2 style={{ fontSize: 17, fontWeight: 700 }}>No care plan yet</h2>
+                            <p style={{ color: 'var(--text-secondary)', marginTop: 6 }}>Hold the {online ? 'video consultation' : 'in-person visit'} with recording consent; the AI draft appears here for your approval.</p>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+                                {online
+                                    ? <Link href={`/doctor-dashboard/calls?patient=${p.id}`} className="btn-primary"><Video size={17} /> Start video consultation</Link>
+                                    : <Link href={`/doctor-dashboard/recorder?patient=${p.id}`} className="btn-primary"><Mic size={17} /> Open recorder</Link>}
+                                <button onClick={draftFromRecords} className="btn-secondary" disabled={busy}>
+                                    {busy && <Loader2 size={16} className="animate-spin" />} Draft from records only
+                                </button>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
-                                    <Thermometer size={14} color="#F59E0B" /> Temperature
+                            {error && <p role="alert" style={{ color: 'var(--color-danger)', marginTop: 12 }}>{error}</p>}
+                        </section>
+                    ) : (
+                        <section className="card" style={{ padding: 22 }}>
+                            <h2 style={{ fontSize: 17, fontWeight: 700 }}>{approved ? 'Approved care plan' : 'AI draft — review, edit and sign'}</h2>
+                            {!approved && <p className="field-hint">Drafted from the consultation{transcript.length ? ' transcript' : ''} and the patient’s record. Nothing reaches the patient until you approve.</p>}
+
+                            <div style={{ display: 'grid', gap: 14, marginTop: 16 }}>
+                                <div>
+                                    <label className="field-label" htmlFor="dx">Diagnosis</label>
+                                    <input id="dx" className="input-field" value={plan.diagnosis || ''} onChange={e => update({ diagnosis: e.target.value })} disabled={approved} />
                                 </div>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>98.6°F</div>
+                                {plan.summary && (
+                                    <div>
+                                        <span className="field-label">Consultation summary</span>
+                                        <p style={{ fontSize: 14.5, color: 'var(--text-secondary)', background: 'var(--bg-glass)', padding: 12, borderRadius: 8 }}>{plan.summary}</p>
+                                    </div>
+                                )}
+
+                                <fieldset style={{ border: 0, display: 'grid', gap: 10 }}>
+                                    <legend className="field-label">Medicines</legend>
+                                    {plan.medicines.map((m, i) => (
+                                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr 1.4fr 0.8fr auto', gap: 6, alignItems: 'center' }}>
+                                            <input aria-label="Medicine" className="input-field" placeholder="Medicine" value={m.name} onChange={e => updateMed(i, { name: e.target.value })} disabled={approved} />
+                                            <input aria-label="Dose" className="input-field" placeholder="Dose" value={m.dosage} onChange={e => updateMed(i, { dosage: e.target.value })} disabled={approved} />
+                                            <input aria-label="When to take" className="input-field" placeholder="When (e.g. 8 AM, 8 PM)" value={m.frequency} onChange={e => updateMed(i, { frequency: e.target.value })} disabled={approved} />
+                                            <input aria-label="Duration" className="input-field" placeholder="Days" value={m.duration} onChange={e => updateMed(i, { duration: e.target.value })} disabled={approved} />
+                                            {!approved && <button type="button" className="btn-ghost" aria-label={`Remove ${m.name || 'medicine'}`} onClick={() => update({ medicines: plan.medicines.filter((_, j) => j !== i) })} style={{ padding: 8, color: 'var(--color-danger)' }}><Trash2 size={17} /></button>}
+                                            {m.notes && <span style={{ gridColumn: '1 / -1', fontSize: 13, color: m.notes.startsWith('AI suggestion') ? 'var(--color-warning)' : 'var(--text-muted)', marginTop: -2 }}>{m.notes}</span>}
+                                        </div>
+                                    ))}
+                                    {!approved && <button type="button" className="btn-ghost" onClick={() => update({ medicines: [...plan.medicines, { ...EMPTY_MED }] })} style={{ justifySelf: 'start' }}><Plus size={16} /> Add medicine</button>}
+                                </fieldset>
+
+                                {([['dietGuidance', 'Diet'], ['lifestyleGuidance', 'Exercise & activity'], ['generalInstructions', 'Instructions & warning signs']] as const).map(([key, title]) => (
+                                    <div key={key}>
+                                        <label className="field-label" htmlFor={key}>{title}</label>
+                                        <textarea id={key} className="input-field" rows={3} value={plan[key]} onChange={e => update({ [key]: e.target.value })} disabled={approved} style={{ resize: 'vertical' }} />
+                                    </div>
+                                ))}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 12 }}>
+                                    <div>
+                                        <label className="field-label" htmlFor="fu">Follow-up in</label>
+                                        <select id="fu" className="input-field" value={plan.followUpDays} onChange={e => update({ followUpDays: Number(e.target.value) })} disabled={approved}>
+                                            {[3, 7, 14, 21, 30].map(d => <option key={d} value={d}>{d} days</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="field-label" htmlFor="notes">Note to patient</label>
+                                        <input id="notes" className="input-field" value={plan.doctorNotes || ''} onChange={e => update({ doctorNotes: e.target.value })} disabled={approved} />
+                                    </div>
+                                </div>
+
+                                {error && <p role="alert" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+                                {!approved && (
+                                    <button onClick={approve} className="btn-primary" style={{ fontSize: 16 }}>
+                                        <BadgeCheck size={19} /> Approve, sign and send to patient
+                                    </button>
+                                )}
+                                {!approved && <p className="field-hint" style={{ textAlign: 'center', marginTop: -6 }}>Sends the plan and prescription to the patient and adds the medicines to their cart.</p>}
                             </div>
-                        </div>
-                    </div>
+                        </section>
+                    )}
 
-                    {/* Doctor Notes */}
-                    <div className="glass-card-static" style={{ padding: 20 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Doctor's Notes (Optional)</h3>
-                        <textarea 
-                            className="input-field" 
-                            style={{ width: '100%', height: 120, resize: 'none', padding: 12, fontSize: 14 }}
-                            placeholder="Add your own notes or instructions here..."
-                            value={editedJourney.doctorNotes || ''}
-                            onChange={handleEditNotes}
-                        />
-                    </div>
-
-                    {/* Approve Button */}
-                    <div style={{ position: 'sticky', top: 24 }}>
-                        <button 
-                            onClick={handleApprove}
-                            disabled={isSaving}
-                            className="btn-primary" 
-                            style={{ 
-                                width: '100%', padding: '16px', fontSize: 16, 
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)',
-                                background: 'linear-gradient(135deg, #10B981, #059669)'
-                            }}
-                        >
-                            {isSaving ? 'Approving...' : <><Check size={20} /> Approve & Send to Patient</>}
-                        </button>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 12 }}>
-                            This will activate the care plan on the patient's dashboard.
-                        </p>
-                    </div>
-
+                    {approved && (
+                        <section className="card" style={{ padding: 22 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                <h2 style={{ fontSize: 17, fontWeight: 700, display: 'flex', gap: 8, alignItems: 'center' }}><Activity size={18} /> Recovery</h2>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, color: 'var(--color-primary)' }}>{rate === null ? '—' : `${rate}%`}</span>
+                            </div>
+                            <p className="field-hint">Recovery rate from the patient’s daily check-ins (last 7). Follow-up due {plan?.followUpDate}.</p>
+                            {checkins.length === 0 ? <p style={{ color: 'var(--text-muted)', marginTop: 10 }}>No check-ins yet.</p> : (
+                                <ul style={{ listStyle: 'none', display: 'grid', gap: 6, marginTop: 12, fontSize: 14.5 }}>
+                                    {checkins.slice().reverse().map(c => (
+                                        <li key={c.date} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>{c.date}</span><span>Feeling {c.feeling}/5 · medicines {c.tookMedicines ? 'taken' : <strong style={{ color: 'var(--color-warning)' }}>missed</strong>}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </section>
+                    )}
                 </div>
             </div>
         </div>

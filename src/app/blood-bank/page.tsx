@@ -54,8 +54,8 @@ export default function BloodBankPortal() {
     return (
         <div style={{ padding: 40, maxWidth: 1200, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Droplet size={24} style={{ color: '#EF4444' }} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(220, 38, 38, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Droplet size={24} style={{ color: '#DC2626' }} />
                 </div>
                 <div>
                     <h1 style={{ fontSize: 28, fontWeight: 800 }}>Blood Bank Portal</h1>
@@ -75,9 +75,9 @@ export default function BloodBankPortal() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
                         {inventory.map((item, i) => (
-                            <div key={i} className="glass-card" style={{ padding: 16, textAlign: 'center', borderTop: item.count < 10 ? '3px solid #EF4444' : '3px solid #10B981' }}>
+                            <div key={i} className="glass-card" style={{ padding: 16, textAlign: 'center', borderTop: item.count < 10 ? '3px solid #DC2626' : '3px solid #059669' }}>
                                 <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{item.type}</div>
-                                <div style={{ fontSize: 32, fontWeight: 800, color: item.count < 10 ? '#EF4444' : '#10B981', margin: '8px 0' }}>
+                                <div style={{ fontSize: 32, fontWeight: 800, color: item.count < 10 ? '#DC2626' : '#059669', margin: '8px 0' }}>
                                     {item.count} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>units</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
@@ -98,14 +98,14 @@ export default function BloodBankPortal() {
                 {/* Right Col: Notifications */}
                 <div>
                     <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Bell size={18} style={{ color: '#F59E0B' }} /> Active Requests Inbox
+                        <Bell size={18} style={{ color: '#D97706' }} /> Active Requests Inbox
                     </h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {requests.map((req) => (
-                            <div key={req.id} className="glass-card" style={{ padding: 16, borderLeft: req.status === 'Pending' ? '4px solid #F59E0B' : '4px solid #10B981' }}>
+                            <div key={req.id} className="glass-card" style={{ padding: 16, borderLeft: req.status === 'Pending' ? '4px solid #D97706' : '4px solid #059669' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#EF4444' }}>{req.bloodType} <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Required</span></div>
-                                    <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: req.status === 'Pending' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: req.status === 'Pending' ? '#F59E0B' : '#10B981' }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#DC2626' }}>{req.bloodType} <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Required</span></div>
+                                    <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: req.status === 'Pending' ? 'rgba(217, 119, 6, 0.1)' : 'rgba(5, 150, 105, 0.1)', color: req.status === 'Pending' ? '#D97706' : '#059669' }}>
                                         {req.status}
                                     </span>
                                 </div>
@@ -122,7 +122,7 @@ export default function BloodBankPortal() {
                                             updateEmergencyRequestStatus(req.id, 'Dispatched');
                                             setRequests(getEmergencyRequests().filter(r => r.type === 'blood'));
                                         }}
-                                        style={{ width: '100%', marginTop: 12, padding: '8px', borderRadius: 6, background: '#10B981', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                                        style={{ width: '100%', marginTop: 12, padding: '8px', borderRadius: 6, background: '#059669', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                                     >
                                         Mark as Dispatched
                                     </button>

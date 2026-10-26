@@ -2,56 +2,63 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { getCurrentUser, clearCurrentUser, getUnreadNotificationCount } from '@/lib/store';
+import { usePathname } from 'next/navigation';
+import { getCurrentUser, clearCurrentUser, getUnreadNotificationCount, type UserProfile } from '@/lib/store';
 import { useLanguage } from '@/lib/LanguageProvider';
 import {
-    LayoutDashboard, Brain, HeartPulse, FileText, Pill,
-    Stethoscope, Users, Settings, Phone, LogOut, Menu,
-    Activity, ClipboardList, Bell, ShieldAlert, Monitor
+    LayoutDashboard, HeartPulse, Pill, Settings, Phone, LogOut, Menu, X,
+    Activity, ClipboardPlus, Bell, Video, FileText, Users, HandHeart, PersonStanding,
 } from 'lucide-react';
 
-const navItems = [
-    { href: '/journey/patient-portal', tKey: 'Patient Portal', icon: LayoutDashboard },
-    { href: '/recovery', tKey: 'Recovery Hub', icon: Activity },
-    { href: '/journey/intake', tKey: 'New Check-in', icon: Brain },
-    { href: '/vitals', tKey: 'nav.vitals', icon: HeartPulse },
-    { href: '/medicines', tKey: 'Medicines', icon: Pill },
-    { href: '/settings', tKey: 'nav.settings', icon: Settings },
+const navGroups = [
+    {
+        label: 'Care',
+        items: [
+            { href: '/journey/patient-portal', tKey: 'Home', icon: LayoutDashboard },
+            { href: '/journey/intake', tKey: 'New check-in', icon: ClipboardPlus },
+            { href: '/journey/digital-twin', tKey: 'Digital Twin', icon: PersonStanding },
+            { href: '/calls', tKey: 'Consultations', icon: Video },
+            { href: '/prescriptions', tKey: 'Prescriptions', icon: FileText },
+        ],
+    },
+    {
+        label: 'My health',
+        items: [
+            { href: '/vitals', tKey: 'nav.vitals', icon: HeartPulse },
+            { href: '/recovery', tKey: 'Recovery plan', icon: Activity },
+            { href: '/medicines', tKey: 'Medicines', icon: Pill },
+        ],
+    },
+    {
+        label: 'Family & support',
+        items: [
+            { href: '/family', tKey: 'Family', icon: Users },
+            { href: '/recovery-circle', tKey: 'Recovery circle', icon: HandHeart },
+        ],
+    },
+    {
+        label: 'Account',
+        items: [
+            { href: '/notifications', tKey: 'Notifications', icon: Bell, showBadge: true },
+            { href: '/settings', tKey: 'nav.settings', icon: Settings },
+        ],
+    },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const router = useRouter();
     const { t } = useLanguage();
-    const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [notifCount, setNotifCount] = useState(0);
-    const user = getCurrentUser();
+    const [user, setUser] = useState<UserProfile | null>(null);
+    const label = (key: string) => (t(key) === key ? key : t(key));
 
     useEffect(() => {
+        setUser(getCurrentUser());
         setNotifCount(getUnreadNotificationCount());
-    }, []);
+    }, [pathname]);
 
-    useEffect(() => {
-        const styleId = 'sidebar-mobile-styles';
-        let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = styleId;
-            document.head.appendChild(styleEl);
-        }
-        styleEl.textContent = `
-            @media (max-width: 768px) {
-                .mobile-menu-btn { display: flex !important; }
-                aside {
-                    transform: translateX(${mobileOpen ? '0' : '-100%'}) !important;
-                    width: 260px !important;
-                }
-            }
-        `;
-        return () => { styleEl?.remove(); };
-    }, [mobileOpen]);
+    useEffect(() => setMobileOpen(false), [pathname]);
 
     const handleLogout = () => {
         if (confirm('Are you sure you want to sign out?')) {
@@ -60,166 +67,88 @@ export default function Sidebar() {
         }
     };
 
+    const brand = (
+        <Link href="/journey/patient-portal" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'var(--text-primary)' }}>
+            <span style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--color-primary)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <HeartPulse size={19} color="#fff" />
+            </span>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>HealthSync</span>
+        </Link>
+    );
+
     return (
         <>
-            {/* Mobile hamburger */}
-            <button
-                onClick={() => setMobileOpen(true)}
-                style={{
-                    position: 'fixed', top: 16, left: 16, zIndex: 1002,
-                    display: 'none', width: 44, height: 44, borderRadius: 12,
-                    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                    alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                    backdropFilter: 'blur(16px)',
-                }}
-                className="mobile-menu-btn"
-            >
-                <Menu size={20} style={{ color: 'var(--text-primary)' }} />
-            </button>
+            <div className="mobile-topbar">
+                {brand}
+                <button className="btn-ghost" style={{ padding: 10 }} aria-label="Open menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}>
+                    <Menu size={22} />
+                </button>
+            </div>
 
-            {/* Backdrop */}
-            {mobileOpen && (
-                <div onClick={() => setMobileOpen(false)} style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-                    zIndex: 998, backdropFilter: 'blur(4px)',
-                }} />
-            )}
+            {mobileOpen && <div className="app-scrim" onClick={() => setMobileOpen(false)} />}
 
-            {/* Sidebar */}
-            <aside style={{
-                width: collapsed ? 72 : 240,
-                height: '100vh',
-                position: 'fixed',
-                left: 0,
-                top: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                borderRight: '1px solid var(--border-color)',
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(12px)',
-                transition: 'width 0.3s ease',
-                zIndex: 999,
-                overflow: 'hidden',
-                transform: 'translateZ(0)',
+            <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`} aria-label="Patient navigation" style={{
+                width: 264, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 50,
+                display: 'flex', flexDirection: 'column',
+                background: 'var(--bg-card)', borderRight: '1px solid var(--border-color)',
+                transition: 'transform 0.25s ease',
             }}>
-                {/* Header */}
-                <div style={{
-                    padding: collapsed ? '20px 12px' : '20px 18px',
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    borderBottom: '1px solid var(--border-color)',
-                }}>
-                    <div style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        background: 'var(--gradient-primary)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                    }}>
-                        <HeartPulse size={20} style={{ color: 'white' }} />
-                    </div>
-                    {!collapsed && (
-                        <div>
-                            <div style={{ fontWeight: 700, fontSize: 16 }}>HealthSync</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>AI Recovery System</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Nav Items */}
-                <div style={{ flex: 1, padding: '12px 8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {navItems.map((item) => {
-                        const isActive = pathname === item.href;
-                        const Icon = item.icon;
-                        const badge = (item as any).showBadge ? notifCount : 0;
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`sidebar-link ${isActive ? 'active' : ''}`}
-                                style={{ justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '12px' : '12px 16px', position: 'relative' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <Icon size={32} style={{ flexShrink: 0, color: 'var(--color-primary)' }} />
-                                {!collapsed && <span style={{ fontSize: 16, fontWeight: 600 }}>{t(item.tKey) === item.tKey ? item.tKey : t(item.tKey)}</span>}
-                                {badge > 0 && (
-                                    <span style={{
-                                        position: 'absolute', top: 6, right: collapsed ? 6 : 10,
-                                        width: 18, height: 18, borderRadius: '50%', background: '#EF4444',
-                                        color: 'white', fontSize: 10, fontWeight: 700,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>{badge > 9 ? '9+' : badge}</span>
-                                )}
-                            </Link>
-                        );
-                    })}
-                </div>
-
-                {/* SOS Button */}
-                <div style={{ padding: '8px 8px' }}>
-                    <Link href="/emergency" style={{
-                        display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
-                        gap: 10, padding: '12px 16px', borderRadius: 12,
-                        background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)',
-                        color: '#EF4444', fontWeight: 600, fontSize: 14,
-                        textDecoration: 'none', transition: 'all 0.2s ease',
-                    }}>
-                        <Phone size={16} />
-                        {!collapsed && 'Emergency SOS'}
-                    </Link>
-                </div>
-
-                {/* User profile */}
-                <div style={{
-                    padding: collapsed ? '16px 8px' : '16px',
-                    borderTop: '1px solid var(--border-color)',
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: collapsed ? 0 : 10 }}>
-                        <div style={{
-                            width: 36, height: 36, borderRadius: 10,
-                            background: 'var(--gradient-primary)', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center',
-                            color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0,
-                            overflow: 'hidden'
-                        }}>
-                            {user?.avatar ? (
-                                <img src={user.avatar} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                user?.name?.charAt(0).toUpperCase() || 'U'
-                            )}
-                        </div>
-                        {!collapsed && (
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                                <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || 'User'}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email || ''}</div>
-                            </div>
-                        )}
-                    </div>
-                    {!collapsed && (
-                        <button onClick={handleLogout} style={{
-                            width: '100%', padding: '8px 12px', borderRadius: 8,
-                            background: 'none', border: '1px solid var(--border-color)',
-                            color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        }}>
-                            <LogOut size={14} /> {t('nav.signOut')}
+                <div style={{ height: 68, padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
+                    {brand}
+                    {mobileOpen && (
+                        <button className="btn-ghost" style={{ padding: 8, minHeight: 40 }} aria-label="Close menu" onClick={() => setMobileOpen(false)}>
+                            <X size={20} />
                         </button>
                     )}
                 </div>
 
-                {/* Collapse Toggle */}
-                <button
-                    onClick={() => setCollapsed(!collapsed)}
-                    style={{
-                        position: 'absolute', top: 72, right: -12, width: 24, height: 24,
-                        borderRadius: '50%', background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border-color)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'var(--text-muted)', fontSize: 12,
-                    }}
-                >
-                    {collapsed ? '→' : '←'}
-                </button>
-            </aside>
+                <nav style={{ flex: 1, padding: '12px 12px', overflowY: 'auto' }}>
+                    {navGroups.map(group => (
+                        <div key={group.label} style={{ marginBottom: 14 }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '6px 14px' }}>
+                                {group.label}
+                            </div>
+                            {group.items.map(item => {
+                                const active = pathname === item.href || (item.href !== '/journey/patient-portal' && pathname.startsWith(item.href));
+                                const Icon = item.icon;
+                                const badge = 'showBadge' in item && notifCount > 0 ? notifCount : 0;
+                                return (
+                                    <Link key={item.href} href={item.href} className={`sidebar-link ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}>
+                                        <Icon size={19} style={{ flexShrink: 0 }} />
+                                        <span style={{ flex: 1 }}>{label(item.tKey)}</span>
+                                        {badge > 0 && (
+                                            <span aria-label={`${badge} unread`} style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, background: 'var(--color-danger)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>
+                                                {badge > 9 ? '9+' : badge}
+                                            </span>
+                                        )}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </nav>
 
+                <div style={{ padding: '0 12px 12px' }}>
+                    <Link href="/emergency" className="btn-danger" style={{ width: '100%' }}>
+                        <Phone size={17} /> Emergency SOS
+                    </Link>
+                </div>
+
+                <div style={{ padding: 14, borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--color-primary)', display: 'grid', placeItems: 'center', fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
+                        {user?.avatar
+                            ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : user?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || 'Patient'}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.phone || user?.email || ''}</div>
+                    </div>
+                    <button onClick={handleLogout} className="btn-ghost" aria-label={label('nav.signOut')} title={label('nav.signOut')} style={{ padding: 8, minHeight: 40, color: 'var(--text-muted)' }}>
+                        <LogOut size={18} />
+                    </button>
+                </div>
+            </aside>
         </>
     );
 }

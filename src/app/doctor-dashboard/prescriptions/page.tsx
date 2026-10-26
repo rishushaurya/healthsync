@@ -121,7 +121,7 @@ export default function PrescriptionsPage() {
                                 </select>
                                 <input className="input-field" placeholder="Duration" value={med.duration} onChange={e => updateMedicine(i, 'duration', e.target.value)} style={{ flex: 1 }} />
                                 {medicines.length > 1 && (
-                                    <button onClick={() => removeMedicine(i)} style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: 'none', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}><X size={14} /></button>
+                                    <button onClick={() => removeMedicine(i)} style={{ background: 'rgba(220, 38, 38,0.1)', color: '#DC2626', border: 'none', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}><X size={14} /></button>
                                 )}
                             </div>
                         </div>
@@ -178,13 +178,13 @@ export default function PrescriptionsPage() {
                                         </div>
                                         <span style={{
                                             padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                            background: rx.status === 'active' ? 'rgba(14,165,233,0.1)' : 'rgba(16,185,129,0.1)',
-                                            color: rx.status === 'active' ? '#0EA5E9' : '#10B981',
+                                            background: rx.status === 'active' ? 'rgba(14, 116, 144,0.1)' : 'rgba(5, 150, 105,0.1)',
+                                            color: rx.status === 'active' ? '#0E7490' : '#059669',
                                         }}>{rx.status}</span>
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
                                         {rx.medicines.map((m, j) => (
-                                            <span key={j} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, background: 'rgba(139,92,246,0.08)', color: '#8B5CF6', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <span key={j} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, background: 'rgba(79, 107, 138,0.08)', color: '#4F6B8A', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                 <Pill size={10} /> {m.name} — {m.dosage} ({m.frequency})
                                             </span>
                                         ))}

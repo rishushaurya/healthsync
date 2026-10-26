@@ -37,7 +37,7 @@ export default function AbhaPatientPortal() {
         <div style={{ padding: 40, background: 'var(--bg-default)', minHeight: '100vh', maxWidth: 1000, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <User size={24} style={{ color: 'white' }} />
                     </div>
                     <div>
@@ -51,8 +51,8 @@ export default function AbhaPatientPortal() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 {!activePatient ? (
                     <div className="glass-card" style={{ padding: 60, textAlign: 'center', maxWidth: 600, margin: '0 auto' }}>
-                        <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-                            <CreditCard size={40} color="#10B981" />
+                        <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                            <CreditCard size={40} color="#059669" />
                         </div>
                         <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Access Your ABHA Card</h2>
                         <p style={{ color: 'var(--text-secondary)', marginBottom: 40, fontSize: 16, lineHeight: 1.6 }}>
@@ -69,24 +69,24 @@ export default function AbhaPatientPortal() {
                                 style={{ padding: 16, fontSize: 16, textAlign: 'center' }}
                                 required
                             />
-                            <button type="submit" className="btn-primary" style={{ background: '#10B981', padding: '16px', fontSize: 16, fontWeight: 700 }}>
+                            <button type="submit" className="btn-primary" style={{ background: '#059669', padding: '16px', fontSize: 16, fontWeight: 700 }}>
                                 Access Identity
                             </button>
                         </form>
                     </div>
                 ) : (
                     <div>
-                        <button onClick={() => setActivePatient(null)} style={{ background: 'none', border: 'none', color: '#10B981', cursor: 'pointer', marginBottom: 24, fontWeight: 600, fontSize: 15 }}>
+                        <button onClick={() => setActivePatient(null)} style={{ background: 'none', border: 'none', color: '#059669', cursor: 'pointer', marginBottom: 24, fontWeight: 600, fontSize: 15 }}>
                             ← Back to Search
                         </button>
 
                         <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                             {/* Physical Card Representation */}
                             <div style={{ 
-                                width: 420, background: 'linear-gradient(135deg, #ffffff, #f0f9ff)', borderRadius: 20, overflow: 'hidden',
-                                boxShadow: '0 20px 40px rgba(0,0,0,0.1)', border: '1px solid rgba(16, 185, 129, 0.2)'
+                                width: 420, background: '#ffffff', borderRadius: 20, overflow: 'hidden',
+                                boxShadow: '0 20px 40px rgba(0,0,0,0.1)', border: '1px solid rgba(5, 150, 105, 0.2)'
                             }}>
-                                <div style={{ background: '#10B981', color: 'white', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ background: '#059669', color: 'white', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ fontWeight: 800, fontSize: 20 }}>ABHA Health Card</div>
                                     <CreditCard size={28} />
                                 </div>
@@ -105,7 +105,7 @@ export default function AbhaPatientPortal() {
                                 <div style={{ background: '#f8fafc', padding: '20px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, borderTop: '1px solid #e2e8f0' }}>
                                     <div>
                                         <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: 0.5 }}>BLOOD GROUP</div>
-                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#ef4444' }}>{activePatient.bloodGroup}</div>
+                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#DC2626' }}>{activePatient.bloodGroup}</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: 0.5 }}>GOVT ID</div>
@@ -119,11 +119,11 @@ export default function AbhaPatientPortal() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
                                     <h3 style={{ fontSize: 22, fontWeight: 800 }}>Personal Details</h3>
                                     {!isEditing ? (
-                                        <button onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
+                                        <button onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(5, 150, 105, 0.1)', color: '#059669', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
                                             <Edit size={16} /> Edit Details
                                         </button>
                                     ) : (
-                                        <button onClick={handleSaveDetails} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#10B981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
+                                        <button onClick={handleSaveDetails} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#059669', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
                                             <Save size={16} /> Save Changes
                                         </button>
                                     )}

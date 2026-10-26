@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PLATFORM_DOCTORS } from '@/lib/data';
+
+// Only recommend specialties that have bookable doctors on the platform
+const SPECIALTIES = [...new Set(PLATFORM_DOCTORS.map(d => d.specialty))];
 
 const GROQ_KEYS = [
     process.env.GROQ_API_KEY_1 || '',
@@ -59,7 +63,7 @@ CONVERSATION TRANSCRIPT:
 ${transcript}
 
 UPLOADED DOCUMENTS OCR:
-${documents.map((d: any) => `Document: ${d.name}\n${d.text}`).join('\n\n')}
+${(documents || []).map((d: any) => `Document: ${d.name}\n${d.text}`).join('\n\n')}
 
 CRITICAL RULES:
 1. Merge information intelligently. If documents show a history of diabetes, add it to pastMedicalHistory.
@@ -77,8 +81,12 @@ CRITICAL RULES:
   "vikriti": "string (only if AYUSH, else empty)",
   "agni": "string (only if AYUSH, else empty)",
   "aharaVihara": "string (only if AYUSH, else empty)",
-  "redFlags": ["array of strings"]
-}`;
+  "redFlags": ["array of strings"],
+  "explanation": "2-4 plain-language sentences for the patient: what may be causing these symptoms (possibilities, not a diagnosis)",
+  "recommendedSpecialty": "exactly one of: ${SPECIALTIES.join(', ')}",
+  "specialtyReason": "one sentence on why this specialist"
+}
+5. For AYUSH consultations prefer an Ayurvedic or Homeopath specialty; otherwise General Physician when unsure.`;
 
         const text = await callGroq(prompt);
         

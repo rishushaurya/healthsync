@@ -83,10 +83,10 @@ export default function IncomingCallOverlay() {
                         maxWidth: 420,
                         padding: '20px 24px',
                         borderRadius: 20,
-                        background: 'linear-gradient(135deg, #0B1120f5, #1a0b2ef5)',
+                        background: '#0B1120f5',
                         backdropFilter: 'blur(24px)',
-                        border: '1px solid rgba(14,165,233,0.4)',
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14,165,233,0.15)',
+                        border: '1px solid rgba(14, 116, 144,0.4)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14, 116, 144,0.15)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 16,
@@ -98,8 +98,8 @@ export default function IncomingCallOverlay() {
                             style={{
                                 width: 52, height: 52, borderRadius: 16,
                                 background: activeCall.type === 'video'
-                                    ? 'linear-gradient(135deg, #8B5CF6, #6366F1)'
-                                    : 'linear-gradient(135deg, #10B981, #0EA5E9)',
+                                    ? '#4F6B8A'
+                                    : '#059669',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 flexShrink: 0,
                             }}
@@ -127,9 +127,9 @@ export default function IncomingCallOverlay() {
                                 style={{
                                     width: 48, height: 48, borderRadius: '50%',
                                     border: 'none', cursor: 'pointer',
-                                    background: '#EF4444', color: 'white',
+                                    background: '#DC2626', color: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+                                    boxShadow: '0 4px 12px rgba(220, 38, 38,0.4)',
                                     WebkitTapHighlightColor: 'transparent',
                                     touchAction: 'manipulation',
                                 }}
@@ -141,9 +141,9 @@ export default function IncomingCallOverlay() {
                                 style={{
                                     width: 48, height: 48, borderRadius: '50%',
                                     border: 'none', cursor: 'pointer',
-                                    background: '#10B981', color: 'white',
+                                    background: '#059669', color: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 4px 12px rgba(16,185,129,0.4)',
+                                    boxShadow: '0 4px 12px rgba(5, 150, 105,0.4)',
                                     WebkitTapHighlightColor: 'transparent',
                                     touchAction: 'manipulation',
                                 }}

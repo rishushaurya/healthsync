@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff,
     Clock, User, Search, Brain, FileText, Send, Loader2, Check, X, Pill
 } from 'lucide-react';
 import {
-    getCurrentDoctor, generateId,
+    getCurrentDoctor, generateId, getDoctorJourneys, getConsent, setConsent,
     type DoctorAccount, type CallLog
 } from '@/lib/store';
+import { createCarePlanDraft } from '@/lib/care-plan';
+import { useLiveTranscript } from '@/hooks/useLiveTranscript';
 import {
     cloudGetDoctorAppointments, cloudGetCallLogs, cloudAddCallLog,
     cloudUpdateCallLog, cloudGetActiveCall, cloudAddPrescription,
@@ -20,6 +22,14 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 
 export default function CallsPage() {
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const [, rerender] = useState(0);
+    const [draftError, setDraftError] = useState('');
+    // Re-read synced consent so a patient agreeing mid-dial or mid-call starts the transcript
+    useEffect(() => {
+        const id = setInterval(() => rerender(n => n + 1), 3000);
+        return () => clearInterval(id);
+    }, []);
     const webrtc = useWebRTC();
     const [doctor, setDoctor] = useState<DoctorAccount | null>(null);
     const [callHistory, setCallHistory] = useState<CallLog[]>([]);
@@ -252,6 +262,29 @@ export default function CallsPage() {
         setPrescriptionSent(false);
     };
 
+    // Journey consultations: consent-gated transcription, then an AI care-plan draft for approval
+    const journeyFor = (patientId?: string) =>
+        doctor && patientId ? getDoctorJourneys(doctor.id).find(j => j.patient.id === patientId && !j.verified) : undefined;
+    const callJourney = journeyFor(activeCall?.userId);
+    const callConsent = callJourney ? getConsent(callJourney.id) : { patient: false, doctor: false };
+    const transcript = useLiveTranscript(callJourney?.id ?? null, 'doctor', activeCall?.status === 'ongoing' && callConsent.patient && callConsent.doctor);
+    const dialJourney = journeyFor(selectedPatient);
+    const dialConsent = dialJourney ? getConsent(dialJourney.id) : null;
+    const endedJourney = journeyFor(lastEndedCall?.userId);
+
+    const draftCarePlan = async () => {
+        if (!doctor || !lastEndedCall || !endedJourney) return;
+        setGeneratingPrescription(true);
+        setDraftError('');
+        try {
+            await createCarePlanDraft(endedJourney, doctor, 'online', lastEndedCall.startTime, consultationNotes);
+            router.push(`/doctor-dashboard/case/${endedJourney.id}`);
+        } catch {
+            setDraftError('Could not draft the care plan. Try again.');
+            setGeneratingPrescription(false);
+        }
+    };
+
     const formatDuration = (secs: number) => {
         const m = Math.floor(secs / 60); const s = secs % 60;
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -279,7 +312,7 @@ export default function CallsPage() {
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                         style={{
                             position: 'fixed', inset: 0, zIndex: 9999,
-                            background: callType === 'video' ? 'linear-gradient(135deg, #0B1120, #1a0b2e)' : 'linear-gradient(135deg, #0B1120, #0c2035)',
+                            background: callType === 'video' ? '#0B1120' : '#0B1120',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24,
                         }}>
                         {/* Remote Video (full screen background) */}
@@ -309,24 +342,22 @@ export default function CallsPage() {
                         )}
 
                         {/* AI Recording Indicator */}
-                        {activeCall.status === 'ongoing' && (
+                        {transcript.listening && (
                             <motion.div
                                 initial={{ opacity: 0, y: -20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 style={{
                                     position: 'absolute', top: 20, left: 20,
                                     padding: '10px 18px', borderRadius: 12,
-                                    background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    background: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.3)',
                                     display: 'flex', alignItems: 'center', gap: 8,
                                 }}>
                                 <motion.div
                                     animate={{ opacity: [1, 0.3, 1] }}
                                     transition={{ repeat: Infinity, duration: 1.5 }}
-                                    style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444' }}
+                                    style={{ width: 8, height: 8, borderRadius: '50%', background: '#DC2626' }}
                                 />
-                                <span style={{ color: '#EF4444', fontSize: 12, fontWeight: 600 }}>REC</span>
-                                <Brain size={14} style={{ color: '#8B5CF6', marginLeft: 4 }} />
-                                <span style={{ color: '#8B5CF6', fontSize: 12, fontWeight: 600 }}>AI Listening</span>
+                                <span style={{ color: '#FCA5A5', fontSize: 12, fontWeight: 600 }}>REC · transcribing with consent of both</span>
                             </motion.div>
                         )}
 
@@ -342,37 +373,37 @@ export default function CallsPage() {
                         </p>
                         {/* Permission error */}
                         {webrtc.permissionError && (
-                            <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: 12, maxWidth: 300, textAlign: 'center' }}>
+                            <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(220, 38, 38,0.2)', border: '1px solid rgba(220, 38, 38,0.3)', color: '#FCA5A5', fontSize: 12, maxWidth: 300, textAlign: 'center' }}>
                                 {webrtc.permissionError}
                             </div>
                         )}
                         {/* Connection status */}
                         {activeCall.status === 'ongoing' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: webrtc.isConnected ? '#10B981' : '#F59E0B' }} />
-                                <span style={{ color: webrtc.isConnected ? '#10B981' : '#F59E0B', fontSize: 11, fontWeight: 600 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: webrtc.isConnected ? '#059669' : '#D97706' }} />
+                                <span style={{ color: webrtc.isConnected ? '#059669' : '#D97706', fontSize: 11, fontWeight: 600 }}>
                                     {webrtc.isConnected ? 'Voice Connected' : 'Connecting...'}
                                 </span>
                             </div>
                         )}
                         {activeCall.status === 'ringing' && (
                             <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
-                                style={{ width: 14, height: 14, borderRadius: '50%', background: '#10B981' }} />
+                                style={{ width: 14, height: 14, borderRadius: '50%', background: '#059669' }} />
                         )}
                         {activeCall.status === 'ongoing' && (
                             <div style={{
                                 padding: '6px 14px', borderRadius: 8,
-                                background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)',
-                                color: '#A78BFA', fontSize: 11, fontWeight: 600,
+                                background: 'rgba(79, 107, 138, 0.15)', border: '1px solid rgba(79, 107, 138, 0.3)',
+                                color: '#CBD5E1', fontSize: 12, fontWeight: 600,
                                 display: 'flex', alignItems: 'center', gap: 6,
                             }}>
-                                <Brain size={12} /> AI will generate prescription after call
+                                <FileText size={12} /> {callJourney ? (transcript.listening ? 'Care plan will be drafted from this consultation' : 'Not recording — both consents needed') : 'You can draft a prescription after the call'}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 16, marginTop: 20, position: 'relative', zIndex: 10000 }}>
                             <button onClick={() => { const newVal = !isMuted; setIsMuted(newVal); webrtc.toggleMute(newVal); }} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
+                                background: isMuted ? 'rgba(220, 38, 38,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
@@ -380,7 +411,7 @@ export default function CallsPage() {
                             {callType === 'video' && (
                                 <button onClick={() => { const newVal = !isCamOff; setIsCamOff(newVal); webrtc.toggleCamera(newVal); }} style={{
                                     width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                    background: isCamOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
+                                    background: isCamOff ? 'rgba(220, 38, 38,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
                                     {isCamOff ? <CameraOff size={22} /> : <Camera size={22} />}
@@ -388,7 +419,7 @@ export default function CallsPage() {
                             )}
                             <button onClick={endCall} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: '#DC2626', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 <PhoneOff size={22} />
                             </button>
@@ -414,7 +445,7 @@ export default function CallsPage() {
                         >
                             {prescriptionSent ? (
                                 <div style={{ textAlign: 'center', padding: 40 }}>
-                                    <Check size={56} style={{ color: '#10B981', marginBottom: 16 }} />
+                                    <Check size={56} style={{ color: '#059669', marginBottom: 16 }} />
                                     <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Prescription Sent!</h2>
                                     <p style={{ color: 'var(--text-secondary)' }}>
                                         The prescription has been sent to {lastEndedCall?.userName}
@@ -424,7 +455,7 @@ export default function CallsPage() {
                                 <>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <Brain size={22} style={{ color: '#8B5CF6' }} />
+                                            <Brain size={22} style={{ color: '#4F6B8A' }} />
                                             <h2 style={{ fontSize: 20, fontWeight: 700 }}>AI Prescription Generator</h2>
                                         </div>
                                         <button onClick={closePrescriptionModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
@@ -446,6 +477,7 @@ export default function CallsPage() {
                                             style={{ resize: 'vertical', width: '100%' }}
                                         />
                                     </div>
+                                    {draftError && <p role="alert" style={{ color: 'var(--color-danger)', fontSize: 14, marginBottom: 12 }}>{draftError}</p>}
                                     <div style={{ display: 'flex', gap: 10 }}>
                                         <button onClick={closePrescriptionModal} style={{
                                             flex: 1, padding: '12px 20px', borderRadius: 10, border: '1px solid var(--border-color)',
@@ -453,13 +485,13 @@ export default function CallsPage() {
                                         }}>
                                             Skip
                                         </button>
-                                        <button onClick={generateAIPrescription} disabled={generatingPrescription} className="btn-primary" style={{
+                                        <button onClick={endedJourney ? draftCarePlan : generateAIPrescription} disabled={generatingPrescription} className="btn-primary" style={{
                                             flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
                                         }}>
                                             {generatingPrescription ? (
                                                 <><Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Generating...</>
                                             ) : (
-                                                <><Brain size={16} /> Generate AI Prescription</>
+                                                <><Brain size={16} /> {endedJourney ? 'Draft care plan for my approval' : 'Generate AI Prescription'}</>
                                             )}
                                         </button>
                                     </div>
@@ -468,22 +500,22 @@ export default function CallsPage() {
                                 <>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <FileText size={22} style={{ color: '#10B981' }} />
+                                            <FileText size={22} style={{ color: '#059669' }} />
                                             <h2 style={{ fontSize: 20, fontWeight: 700 }}>Review Prescription</h2>
                                         </div>
                                         <button onClick={closePrescriptionModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
                                     </div>
 
                                     {/* Diagnosis */}
-                                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(14, 165, 233, 0.08)', border: '1px solid rgba(14, 165, 233, 0.15)', marginBottom: 16 }}>
-                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#0EA5E9', marginBottom: 4, textTransform: 'uppercase' }}>Diagnosis</div>
+                                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(14, 116, 144, 0.08)', border: '1px solid rgba(14, 116, 144, 0.15)', marginBottom: 16 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#0E7490', marginBottom: 4, textTransform: 'uppercase' }}>Diagnosis</div>
                                         <div style={{ fontSize: 14, fontWeight: 600 }}>{generatedPrescription.diagnosis}</div>
                                     </div>
 
                                     {/* Medicines */}
                                     <div style={{ marginBottom: 16 }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <Pill size={14} style={{ color: '#8B5CF6' }} /> Medicines
+                                            <Pill size={14} style={{ color: '#4F6B8A' }} /> Medicines
                                         </div>
                                         {generatedPrescription.medicines.map((med, i) => (
                                             <div key={i} style={{
@@ -502,14 +534,14 @@ export default function CallsPage() {
                                     </div>
 
                                     {/* Advice / Diet / Recovery */}
-                                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.15)', marginBottom: 16 }}>
-                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#10B981', marginBottom: 6, textTransform: 'uppercase' }}>Advice, Diet & Recovery Plan</div>
+                                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(5, 150, 105, 0.08)', border: '1px solid rgba(5, 150, 105, 0.15)', marginBottom: 16 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#059669', marginBottom: 6, textTransform: 'uppercase' }}>Advice, Diet & Recovery Plan</div>
                                         <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{generatedPrescription.advice}</div>
                                     </div>
 
                                     {/* Follow Up */}
-                                    <div style={{ padding: 12, borderRadius: 10, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.15)', marginBottom: 20 }}>
-                                        <div style={{ fontSize: 12, color: '#F59E0B', fontWeight: 600 }}>
+                                    <div style={{ padding: 12, borderRadius: 10, background: 'rgba(217, 119, 6, 0.08)', border: '1px solid rgba(217, 119, 6, 0.15)', marginBottom: 20 }}>
+                                        <div style={{ fontSize: 12, color: '#D97706', fontWeight: 600 }}>
                                             📅 Follow-up in {generatedPrescription.followUpDays} days
                                         </div>
                                     </div>
@@ -546,18 +578,29 @@ export default function CallsPage() {
                         </select>
                     </div>
                     <div style={{
-                        padding: 12, borderRadius: 10, background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.15)',
+                        padding: 12, borderRadius: 10, background: 'rgba(79, 107, 138, 0.08)', border: '1px solid rgba(79, 107, 138, 0.15)',
                         marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#A78BFA',
                     }}>
-                        <Brain size={14} /> AI will listen and auto-generate prescription after the call
+                        <Brain size={14} /> {dialJourney ? 'This patient has a check-in with you: the call can be transcribed to draft their care plan.' : 'After the call you can draft a prescription with AI.'}
                     </div>
+                    {dialJourney && dialConsent && (
+                        <div style={{ marginBottom: 16, display: 'grid', gap: 8, fontSize: 14 }}>
+                            <div style={{ color: dialConsent.patient ? 'var(--color-accent)' : 'var(--text-muted)' }}>
+                                Patient consent to recording: {dialConsent.patient ? 'given' : 'not yet (asked on their consultation screen)'}
+                            </div>
+                            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <input type="checkbox" checked={dialConsent.doctor} onChange={e => { setConsent(dialJourney.id, 'doctor', e.target.checked); rerender(n => n + 1); }} style={{ width: 18, height: 18, accentColor: 'var(--color-primary)' }} />
+                                I consent to recording this consultation
+                            </label>
+                        </div>
+                    )}
                     <div style={{ display: 'flex', gap: 12 }}>
                         <button className="btn-primary" onClick={() => startCall('audio')} disabled={!selectedPatient}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', flex: 1, justifyContent: 'center' }}>
                             <Phone size={18} /> Audio Call
                         </button>
                         <button className="btn-primary" onClick={() => startCall('video')} disabled={!selectedPatient}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', flex: 1, justifyContent: 'center', background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' }}>
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', flex: 1, justifyContent: 'center', background: '#4F6B8A' }}>
                             <Video size={18} /> Video Call
                         </button>
                     </div>
@@ -581,10 +624,10 @@ export default function CallsPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     <div style={{
                                         width: 40, height: 40, borderRadius: 10,
-                                        background: c.type === 'video' ? 'rgba(139,92,246,0.1)' : 'rgba(14,165,233,0.1)',
+                                        background: c.type === 'video' ? 'rgba(79, 107, 138,0.1)' : 'rgba(14, 116, 144,0.1)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        {c.type === 'video' ? <Video size={18} style={{ color: '#8B5CF6' }} /> : <Phone size={18} style={{ color: '#0EA5E9' }} />}
+                                        {c.type === 'video' ? <Video size={18} style={{ color: '#4F6B8A' }} /> : <Phone size={18} style={{ color: '#0E7490' }} />}
                                     </div>
                                     <div>
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{c.userName}</div>
@@ -595,8 +638,8 @@ export default function CallsPage() {
                                 </div>
                                 <span style={{
                                     padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                    background: c.status === 'completed' ? 'rgba(16,185,129,0.1)' : c.status === 'missed' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
-                                    color: c.status === 'completed' ? '#10B981' : c.status === 'missed' ? '#EF4444' : '#F59E0B',
+                                    background: c.status === 'completed' ? 'rgba(5, 150, 105,0.1)' : c.status === 'missed' ? 'rgba(220, 38, 38,0.1)' : 'rgba(217, 119, 6,0.1)',
+                                    color: c.status === 'completed' ? '#059669' : c.status === 'missed' ? '#DC2626' : '#D97706',
                                 }}>{c.status}</span>
                             </div>
                         </motion.div>

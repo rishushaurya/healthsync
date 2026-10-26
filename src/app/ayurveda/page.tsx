@@ -49,8 +49,8 @@ export default function AyushAdminDashboard() {
     return (
         <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 40 }}>
-                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Leaf size={32} style={{ color: '#10B981' }} />
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(5, 150, 105, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Leaf size={32} style={{ color: '#059669' }} />
                 </div>
                 <div>
                     <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)' }}>Ayush Ministry Dashboard</h1>
@@ -70,7 +70,7 @@ export default function AyushAdminDashboard() {
                     </div>
                 </div>
                 <div className="glass-card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(5, 150, 105, 0.1)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Package size={24} />
                     </div>
                     <div>
@@ -79,7 +79,7 @@ export default function AyushAdminDashboard() {
                     </div>
                 </div>
                 <div className="glass-card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(217, 119, 6, 0.1)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Activity size={24} />
                     </div>
                     <div>
@@ -95,7 +95,7 @@ export default function AyushAdminDashboard() {
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <h2 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Package size={20} style={{ color: '#10B981' }} /> Ayurvedic Medicines Inventory
+                            <Package size={20} style={{ color: '#059669' }} /> Ayurvedic Medicines Inventory
                         </h2>
                         <button onClick={() => setEditMode(!editMode)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>
                             {editMode ? <><Save size={14} /> Save</> : <><Edit size={14} /> Edit Data</>}
@@ -106,7 +106,7 @@ export default function AyushAdminDashboard() {
                         {inventory.map((item, i) => (
                             <div key={item.name} className="glass-card" style={{ padding: 16 }}>
                                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{item.name}</div>
-                                <div style={{ fontSize: 24, fontWeight: 800, color: item.total < 50 ? '#EF4444' : '#10B981' }}>
+                                <div style={{ fontSize: 24, fontWeight: 800, color: item.total < 50 ? '#DC2626' : '#059669' }}>
                                     {item.total} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>units</span>
                                 </div>
                                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>₹{item.price} per unit</div>
@@ -128,7 +128,7 @@ export default function AyushAdminDashboard() {
                     </div>
 
                     <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Users size={20} style={{ color: '#F59E0B' }} /> Available Vaidyas on Duty
+                        <Users size={20} style={{ color: '#D97706' }} /> Available Vaidyas on Duty
                     </h2>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                         {PLATFORM_DOCTORS.filter(doc => doc.type === 'Ayurvedic').map((doc) => (
@@ -140,7 +140,7 @@ export default function AyushAdminDashboard() {
                                     <div style={{ fontWeight: 600, fontSize: 15 }}>{doc.name}</div>
                                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{doc.specialty}</div>
                                 </div>
-                                <div style={{ marginLeft: 'auto', width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} title="On Duty" />
+                                <div style={{ marginLeft: 'auto', width: 10, height: 10, borderRadius: '50%', background: '#059669' }} title="On Duty" />
                             </div>
                         ))}
                     </div>
@@ -180,14 +180,14 @@ export default function AyushAdminDashboard() {
                 {/* Pharmacy Orders */}
                 <div style={{ marginTop: 32 }}>
                     <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Leaf size={20} style={{ color: '#10B981' }} /> Ayurvedic Pharmacy Orders
+                        <Leaf size={20} style={{ color: '#059669' }} /> Ayurvedic Pharmacy Orders
                     </h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {ayurvedicOrders.map(order => (
                             <div key={order.id} className="glass-card" style={{ padding: 16 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                                     <div style={{ fontWeight: 700 }}>Order {order.transactionId}</div>
-                                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', fontWeight: 600 }}>
+                                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontWeight: 600 }}>
                                         {order.status}
                                     </span>
                                 </div>

@@ -3,41 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Pill, ShoppingCart, X, Check, Package, Clock, Truck, MapPin, CreditCard, History } from 'lucide-react';
-import { getCurrentUser, getOrders, addOrder, addNotification, generateId, generateTransactionId, type MedicineOrder } from '@/lib/store';
+import { getCurrentUser, getOrders, addOrder, addNotification, generateId, generateTransactionId, getCart, setCart as saveCart, type MedicineOrder, type CartItem } from '@/lib/store';
+import { MEDICINE_CATALOG } from '@/lib/data';
 import { useLanguage } from '@/lib/LanguageProvider';
 
-const medicines = [
-    { name: 'Amoxicillin', generic: 'Amoxicillin', category: 'Antibiotic', use: 'Bacterial infections', sideEffects: ['Nausea', 'Diarrhea', 'Rash'], janAushadhi: 35, market: 180, rx: true },
-    { name: 'Paracetamol', generic: 'Acetaminophen', category: 'Pain Relief', use: 'Fever, pain, headache', sideEffects: ['Liver damage at high doses'], janAushadhi: 8, market: 30, rx: false },
-    { name: 'Metformin', generic: 'Metformin HCl', category: 'Diabetes', use: 'Type 2 diabetes', sideEffects: ['Nausea', 'Stomach upset', 'Lactic acidosis'], janAushadhi: 12, market: 80, rx: true },
-    { name: 'Atorvastatin', generic: 'Atorvastatin Calcium', category: 'Cholesterol', use: 'High cholesterol', sideEffects: ['Muscle pain', 'Joint pain'], janAushadhi: 20, market: 110, rx: true },
-    { name: 'Amlodipine', generic: 'Amlodipine Besylate', category: 'Blood Pressure', use: 'Hypertension', sideEffects: ['Swelling', 'Dizziness', 'Flushing'], janAushadhi: 15, market: 70, rx: true },
-    { name: 'Omeprazole', generic: 'Omeprazole', category: 'Gastric', use: 'Acid reflux, ulcers', sideEffects: ['Headache', 'Stomach pain'], janAushadhi: 18, market: 95, rx: false },
-    { name: 'Cetirizine', generic: 'Cetirizine HCl', category: 'Allergy', use: 'Allergies, hay fever', sideEffects: ['Drowsiness', 'Dry mouth'], janAushadhi: 10, market: 45, rx: false },
-    { name: 'Azithromycin', generic: 'Azithromycin', category: 'Antibiotic', use: 'Respiratory infections', sideEffects: ['Nausea', 'Diarrhea', 'Stomach cramps'], janAushadhi: 25, market: 120, rx: true },
-    { name: 'Ibuprofen', generic: 'Ibuprofen', category: 'Pain Relief', use: 'Pain, inflammation', sideEffects: ['Stomach ulcers', 'Kidney issues'], janAushadhi: 10, market: 40, rx: false },
-    { name: 'Vitamin D3', generic: 'Cholecalciferol', category: 'Supplement', use: 'Vitamin D deficiency', sideEffects: ['Nausea at high doses'], janAushadhi: 40, market: 150, rx: false },
-    { name: 'Losartan', generic: 'Losartan Potassium', category: 'Blood Pressure', use: 'Hypertension, kidney protection', sideEffects: ['Dizziness', 'Hyperkalemia'], janAushadhi: 22, market: 90, rx: true },
-    { name: 'Montelukast', generic: 'Montelukast Sodium', category: 'Respiratory', use: 'Asthma, allergic rhinitis', sideEffects: ['Headache', 'Mood changes'], janAushadhi: 18, market: 85, rx: true },
-    { name: 'Pantoprazole', generic: 'Pantoprazole', category: 'Gastric', use: 'GERD, ulcers', sideEffects: ['Headache', 'Diarrhea'], janAushadhi: 14, market: 75, rx: false },
-    { name: 'Doxycycline', generic: 'Doxycycline', category: 'Antibiotic', use: 'Acne, UTI, malaria prevention', sideEffects: ['Sun sensitivity', 'Nausea'], janAushadhi: 20, market: 100, rx: true },
-    { name: 'Levothyroxine', generic: 'Levothyroxine Sodium', category: 'Thyroid', use: 'Hypothyroidism', sideEffects: ['Palpitations', 'Weight loss'], janAushadhi: 15, market: 65, rx: true },
-    { name: 'Calcium + D3', generic: 'Calcium Carbonate + D3', category: 'Supplement', use: 'Bone health', sideEffects: ['Constipation'], janAushadhi: 30, market: 120, rx: false },
-    { name: 'Aspirin', generic: 'Acetylsalicylic Acid', category: 'Blood Thinner', use: 'Heart attack prevention', sideEffects: ['Stomach bleeding', 'Bruising'], janAushadhi: 5, market: 25, rx: false },
-    { name: 'Clopidogrel', generic: 'Clopidogrel Bisulfate', category: 'Blood Thinner', use: 'Stroke/heart attack prevention', sideEffects: ['Bleeding', 'Bruising'], janAushadhi: 28, market: 130, rx: true },
-    { name: 'Ranitidine', generic: 'Ranitidine HCl', category: 'Gastric', use: 'Heartburn, acid reflux', sideEffects: ['Headache', 'Constipation'], janAushadhi: 8, market: 35, rx: false },
-    { name: 'Multivitamin', generic: 'Multivitamin Complex', category: 'Supplement', use: 'General health', sideEffects: ['Nausea if taken without food'], janAushadhi: 25, market: 180, rx: false },
-    { name: 'Iron + Folic Acid', generic: 'Ferrous Sulfate + Folic Acid', category: 'Supplement', use: 'Anemia', sideEffects: ['Constipation', 'Dark stools'], janAushadhi: 12, market: 60, rx: false },
-    { name: 'Gabapentin', generic: 'Gabapentin', category: 'Nerve Pain', use: 'Nerve pain, seizures', sideEffects: ['Drowsiness', 'Dizziness'], janAushadhi: 30, market: 140, rx: true },
-    { name: 'Metoprolol', generic: 'Metoprolol Tartrate', category: 'Blood Pressure', use: 'Hypertension, angina', sideEffects: ['Fatigue', 'Cold hands'], janAushadhi: 18, market: 75, rx: true },
-    { name: 'Fluconazole', generic: 'Fluconazole', category: 'Antifungal', use: 'Fungal infections', sideEffects: ['Nausea', 'Headache'], janAushadhi: 15, market: 80, rx: true },
-    { name: 'ORS Powder', generic: 'Oral Rehydration Salts', category: 'Rehydration', use: 'Dehydration, diarrhea', sideEffects: ['Rare'], janAushadhi: 5, market: 20, rx: false },
-    { name: 'Ashwagandha', generic: 'Withania Somnifera', category: 'Ayurvedic', use: 'Stress relief, immunity', sideEffects: ['Drowsiness at high doses'], janAushadhi: 80, market: 150, rx: false },
-    { name: 'Triphala Churna', generic: 'Amalaki, Bibhitaki, Haritaki', category: 'Ayurvedic', use: 'Digestion, detox', sideEffects: ['Mild diarrhea initially'], janAushadhi: 60, market: 120, rx: false },
-    { name: 'Giloy Ghanvati', generic: 'Tinospora Cordifolia', category: 'Ayurvedic', use: 'Immunity booster, fever', sideEffects: ['Constipation (rare)'], janAushadhi: 70, market: 140, rx: false },
-    { name: 'Brahmi Vati', generic: 'Bacopa Monnieri', category: 'Ayurvedic', use: 'Memory, focus, stress', sideEffects: ['Stomach upset (rare)'], janAushadhi: 90, market: 180, rx: false },
-    { name: 'Chyawanprash', generic: 'Amla & Ayurvedic Herbs', category: 'Ayurvedic', use: 'Overall immunity and vitality', sideEffects: ['Heartburn if eaten empty stomach'], janAushadhi: 150, market: 250, rx: false },
-];
+const medicines = MEDICINE_CATALOG;
 
 const categories = ['All', ...new Set(medicines.map(m => m.category))].sort();
 
@@ -45,7 +15,8 @@ export default function MedicinesPage() {
     const { t } = useLanguage();
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('All');
-    const [cart, setCart] = useState<{ name: string; quantity: number; price: number }[]>([]);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [cartLoaded, setCartLoaded] = useState(false);
     const [showCart, setShowCart] = useState(false);
     const [showOrders, setShowOrders] = useState(false);
     const [orders, setOrders] = useState<MedicineOrder[]>([]);
@@ -54,7 +25,17 @@ export default function MedicinesPage() {
 
     useEffect(() => {
         setOrders(getOrders().slice().reverse());
+        // Cart is persisted: approved prescriptions add their medicines here
+        const user = getCurrentUser();
+        if (user) setCart(getCart(user.id));
+        setCartLoaded(true);
+        if (new URLSearchParams(window.location.search).get('cart')) setShowCart(true);
     }, []);
+
+    useEffect(() => {
+        const user = getCurrentUser();
+        if (user && cartLoaded) saveCart(user.id, cart);
+    }, [cart, cartLoaded]);
 
     const filtered = medicines.filter(m => {
         const matchSearch = m.name.toLowerCase().includes(search.toLowerCase()) || m.generic.toLowerCase().includes(search.toLowerCase()) || m.use.toLowerCase().includes(search.toLowerCase());
@@ -133,7 +114,7 @@ export default function MedicinesPage() {
                         {cart.length > 0 && (
                             <span style={{
                                 position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
-                                background: '#EF4444', color: 'white', fontSize: 11, fontWeight: 700,
+                                background: '#DC2626', color: 'white', fontSize: 11, fontWeight: 700,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>{cart.length}</span>
                         )}
@@ -147,12 +128,12 @@ export default function MedicinesPage() {
                     <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
                         style={{
                             padding: 20, borderRadius: 14, marginBottom: 20,
-                            background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+                            background: 'rgba(5, 150, 105,0.08)', border: '1px solid rgba(5, 150, 105,0.2)',
                             display: 'flex', alignItems: 'center', gap: 12,
                         }}>
-                        <Check size={22} style={{ color: '#10B981' }} />
+                        <Check size={22} style={{ color: '#059669' }} />
                         <div>
-                            <div style={{ fontWeight: 700, color: '#10B981' }}>Order Placed Successfully!</div>
+                            <div style={{ fontWeight: 700, color: '#059669' }}>Order Placed Successfully!</div>
                             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
                                 Transaction ID: <strong>{orderSuccess}</strong> — Check notifications for updates
                             </div>
@@ -180,8 +161,8 @@ export default function MedicinesPage() {
                                             <span style={{ fontWeight: 600, fontSize: 13 }}>{o.transactionId}</span>
                                             <span style={{
                                                 padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                                background: o.status === 'delivered' ? 'rgba(16,185,129,0.1)' : 'rgba(14,165,233,0.1)',
-                                                color: o.status === 'delivered' ? '#10B981' : '#0EA5E9',
+                                                background: o.status === 'delivered' ? 'rgba(5, 150, 105,0.1)' : 'rgba(14, 116, 144,0.1)',
+                                                color: o.status === 'delivered' ? '#059669' : '#0E7490',
                                             }}>{o.status}</span>
                                         </div>
                                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -245,7 +226,7 @@ export default function MedicinesPage() {
                     {categories.map(c => (
                         <button key={c} onClick={() => setCategory(c)} style={{
                             padding: '6px 14px', borderRadius: 20, border: `1px solid ${category === c ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                            background: category === c ? 'rgba(14,165,233,0.08)' : 'var(--bg-card)',
+                            background: category === c ? 'rgba(14, 116, 144,0.08)' : 'var(--bg-card)',
                             color: category === c ? 'var(--color-primary)' : 'var(--text-secondary)',
                             cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
                         }}>{c}</button>
@@ -265,18 +246,18 @@ export default function MedicinesPage() {
                             </div>
                             <span style={{
                                 padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
-                                background: med.rx ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
-                                color: med.rx ? '#EF4444' : '#10B981',
+                                background: med.rx ? 'rgba(220, 38, 38,0.1)' : 'rgba(5, 150, 105,0.1)',
+                                color: med.rx ? '#DC2626' : '#059669',
                             }}>{med.rx ? 'Rx' : 'OTC'}</span>
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>{med.use}</div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div>
-                                <span style={{ fontSize: 18, fontWeight: 800, color: '#10B981' }}>₹{med.janAushadhi}</span>
+                                <span style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>₹{med.janAushadhi}</span>
                                 <span style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'line-through', marginLeft: 8 }}>₹{med.market}</span>
                                 <span style={{
                                     marginLeft: 8, padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                                    background: 'rgba(16,185,129,0.08)', color: '#10B981',
+                                    background: 'rgba(5, 150, 105,0.08)', color: '#059669',
                                 }}>Save {savings(med.market, med.janAushadhi)}%</span>
                             </div>
                         </div>

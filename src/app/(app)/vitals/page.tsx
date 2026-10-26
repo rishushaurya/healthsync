@@ -8,12 +8,12 @@ import { getVitals, addVital, generateId, addNotification, getCurrentUser, type 
 import { useLanguage } from '@/lib/LanguageProvider';
 
 const vitalTypes = [
-    { type: 'bp', label: 'Blood Pressure', unit: 'mmHg', icon: Heart, color: '#EF4444', placeholder: '120/80' },
-    { type: 'sugar', label: 'Blood Sugar', unit: 'mg/dL', icon: Droplets, color: '#0EA5E9', placeholder: '95' },
-    { type: 'temperature', label: 'Temperature', unit: '\u00B0F', icon: Thermometer, color: '#F59E0B', placeholder: '98.6' },
-    { type: 'heartRate', label: 'Heart Rate', unit: 'bpm', icon: Activity, color: '#8B5CF6', placeholder: '72' },
-    { type: 'spo2', label: 'SpO2', unit: '%', icon: TrendingUp, color: '#10B981', placeholder: '98' },
-    { type: 'weight', label: 'Weight', unit: 'kg', icon: Scale, color: '#EC4899', placeholder: '70' },
+    { type: 'bp', label: 'Blood Pressure', unit: 'mmHg', icon: Heart, color: '#DC2626', placeholder: '120/80' },
+    { type: 'sugar', label: 'Blood Sugar', unit: 'mg/dL', icon: Droplets, color: '#0E7490', placeholder: '95' },
+    { type: 'temperature', label: 'Temperature', unit: '\u00B0F', icon: Thermometer, color: '#D97706', placeholder: '98.6' },
+    { type: 'heartRate', label: 'Heart Rate', unit: 'bpm', icon: Activity, color: '#4F6B8A', placeholder: '72' },
+    { type: 'spo2', label: 'SpO2', unit: '%', icon: TrendingUp, color: '#059669', placeholder: '98' },
+    { type: 'weight', label: 'Weight', unit: 'kg', icon: Scale, color: '#B4436C', placeholder: '70' },
 ];
 
 function getStatus(type: string, value: string): { text: string; color: string } {
@@ -23,15 +23,15 @@ function getStatus(type: string, value: string): { text: string; color: string }
         case 'bp': {
             const parts = value.split('/');
             const sys = parseFloat(parts[0]);
-            if (sys > 140) return { text: 'High', color: '#EF4444' };
-            if (sys < 90) return { text: 'Low', color: '#F59E0B' };
-            return { text: 'Normal', color: '#10B981' };
+            if (sys > 140) return { text: 'High', color: '#DC2626' };
+            if (sys < 90) return { text: 'Low', color: '#D97706' };
+            return { text: 'Normal', color: '#059669' };
         }
-        case 'sugar': return v > 126 ? { text: 'High', color: '#EF4444' } : v < 70 ? { text: 'Low', color: '#F59E0B' } : { text: 'Normal', color: '#10B981' };
-        case 'heartRate': return v > 100 ? { text: 'High', color: '#EF4444' } : v < 60 ? { text: 'Low', color: '#F59E0B' } : { text: 'Normal', color: '#10B981' };
-        case 'spo2': return v < 95 ? { text: 'Low', color: '#EF4444' } : { text: 'Normal', color: '#10B981' };
-        case 'temperature': return v > 100 ? { text: 'Fever', color: '#EF4444' } : v < 97 ? { text: 'Low', color: '#F59E0B' } : { text: 'Normal', color: '#10B981' };
-        default: return { text: 'Stable', color: '#10B981' };
+        case 'sugar': return v > 126 ? { text: 'High', color: '#DC2626' } : v < 70 ? { text: 'Low', color: '#D97706' } : { text: 'Normal', color: '#059669' };
+        case 'heartRate': return v > 100 ? { text: 'High', color: '#DC2626' } : v < 60 ? { text: 'Low', color: '#D97706' } : { text: 'Normal', color: '#059669' };
+        case 'spo2': return v < 95 ? { text: 'Low', color: '#DC2626' } : { text: 'Normal', color: '#059669' };
+        case 'temperature': return v > 100 ? { text: 'Fever', color: '#DC2626' } : v < 97 ? { text: 'Low', color: '#D97706' } : { text: 'Normal', color: '#059669' };
+        default: return { text: 'Stable', color: '#059669' };
     }
 }
 
@@ -169,7 +169,7 @@ export default function VitalsPage() {
                                     <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}
                                         style={{
                                             position: 'absolute', top: -8, right: -8, width: 24, height: 24, borderRadius: '50%',
-                                            background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         }}>
                                         <CheckCircle size={14} style={{ color: 'white' }} />
                                     </motion.div>
@@ -193,27 +193,27 @@ export default function VitalsPage() {
                                 <AreaChart data={chartData}>
                                     <defs>
                                         <linearGradient id="bpGrad1" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#DC2626" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#DC2626" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="bpGrad2" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#0E7490" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#0E7490" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                                     <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} />
                                     <YAxis stroke="var(--text-muted)" fontSize={12} />
                                     <Tooltip contentStyle={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 12 }} />
-                                    <Area type="monotone" dataKey="systolic" stroke="#EF4444" fill="url(#bpGrad1)" strokeWidth={2} />
-                                    <Area type="monotone" dataKey="diastolic" stroke="#0EA5E9" fill="url(#bpGrad2)" strokeWidth={2} />
+                                    <Area type="monotone" dataKey="systolic" stroke="#DC2626" fill="url(#bpGrad1)" strokeWidth={2} />
+                                    <Area type="monotone" dataKey="diastolic" stroke="#0E7490" fill="url(#bpGrad2)" strokeWidth={2} />
                                 </AreaChart>
                             ) : (
                                 <AreaChart data={chartData}>
                                     <defs>
                                         <linearGradient id="vitalGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={vitalTypes.find(v => v.type === activeChart)?.color || '#0EA5E9'} stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor={vitalTypes.find(v => v.type === activeChart)?.color || '#0EA5E9'} stopOpacity={0} />
+                                            <stop offset="5%" stopColor={vitalTypes.find(v => v.type === activeChart)?.color || '#0E7490'} stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor={vitalTypes.find(v => v.type === activeChart)?.color || '#0E7490'} stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />

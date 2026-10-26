@@ -75,7 +75,7 @@ export default function NotesPage() {
                         {(['consultation', 'follow-up', 'general'] as const).map(t => (
                             <button key={t} onClick={() => setNoteType(t)} style={{
                                 padding: '5px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', textTransform: 'capitalize',
-                                background: noteType === t ? 'rgba(14,165,233,0.1)' : 'var(--bg-card)',
+                                background: noteType === t ? 'rgba(14, 116, 144,0.1)' : 'var(--bg-card)',
                                 color: noteType === t ? 'var(--color-primary)' : 'var(--text-muted)',
                                 border: '1px solid var(--border-color)', fontWeight: noteType === t ? 600 : 400,
                             }}>{t}</button>
@@ -115,8 +115,8 @@ export default function NotesPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <span style={{
                                         padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize',
-                                        background: n.type === 'consultation' ? 'rgba(14,165,233,0.1)' : n.type === 'follow-up' ? 'rgba(139,92,246,0.1)' : 'rgba(128,128,128,0.1)',
-                                        color: n.type === 'consultation' ? '#0EA5E9' : n.type === 'follow-up' ? '#8B5CF6' : 'var(--text-muted)',
+                                        background: n.type === 'consultation' ? 'rgba(14, 116, 144,0.1)' : n.type === 'follow-up' ? 'rgba(79, 107, 138,0.1)' : 'rgba(128,128,128,0.1)',
+                                        color: n.type === 'consultation' ? '#0E7490' : n.type === 'follow-up' ? '#4F6B8A' : 'var(--text-muted)',
                                     }}>{n.type}</span>
                                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.date).toLocaleString()}</span>
                                 </div>

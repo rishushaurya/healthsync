@@ -13,7 +13,8 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType>({
     lang: 'en',
     setLang: () => { },
-    t: (key: string) => key,
+    // Pages outside the provider (e.g. /onboarding) still get English text instead of raw keys
+    t: (key: string) => translate(key, 'en'),
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {

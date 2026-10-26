@@ -5,8 +5,20 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
-import { Brain, X, Send, Mic, MicOff, ImagePlus, Volume2, VolumeX, AudioLines } from 'lucide-react';
-import { getCurrentUser, getVitals, getReports, getDigitalTwinChat, setDigitalTwinChat, generateId, saveVisionAnalysis, type ChatMessage } from '@/lib/store';
+import { Brain, X, Send, Mic, MicOff, ImagePlus, Volume2, VolumeX, AudioLines, RotateCcw, MessageSquarePlus } from 'lucide-react';
+import {
+    getCurrentUser, getVitals, getReports, getDigitalTwinChat, setDigitalTwinChat, generateId, saveVisionAnalysis, type ChatMessage,
+    getSymptomLog, setSymptomLog, getActiveJourney, saveJourney, saveIntakeSummary, sexOf, JourneyStep,
+} from '@/lib/store';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { matchDoctors } from '@/lib/data';
+import type { AnatomySex } from '@/components/three/AnatomyTwin';
+
+// Medical reference anatomy (female / male: skin, organs, skeleton); the original classic body stays available
+const AnatomyTwin = dynamic(() => import('@/components/three/AnatomyTwin'), { ssr: false });
+
+type Recommendation = { chiefComplaint: string; hpi?: string; explanation?: string; recommendedSpecialty?: string; specialtyReason?: string; redFlags?: string[] };
 import { buildAIContext, formatContextForAI } from '@/lib/ai-context';
 
 // ── Body Part Definitions ──
@@ -98,9 +110,9 @@ const BodyPartMesh = ({
 
     const color = useMemo(() => {
         if (!symptomSeverity) return part.color;
-        if (symptomSeverity === 'mild') return '#F59E0B';
+        if (symptomSeverity === 'mild') return '#D97706';
         if (symptomSeverity === 'moderate') return '#F97316';
-        return '#EF4444';
+        return '#DC2626';
     }, [symptomSeverity, part.color]);
 
     const hasSymptom = !!symptomSeverity;
@@ -163,7 +175,7 @@ function ScanRing() {
         <mesh ref={meshRef} position={[0, 1.0, 0]}>
             <torusGeometry args={[0.6, 0.008, 8, 48]} />
             <meshBasicMaterial
-                color="#0EA5E9"
+                color="#0E7490"
                 transparent
                 opacity={0.2}
                 side={THREE.DoubleSide}
@@ -178,7 +190,7 @@ function GridFloor() {
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.3, 0]}>
             <circleGeometry args={[2, 32]} />
             <meshBasicMaterial
-                color="#0EA5E9"
+                color="#0E7490"
                 transparent
                 opacity={0.03}
             />
@@ -232,21 +244,21 @@ function SceneSetup() {
 }
 
 // ── Symptom Labels Overlay (DOM-based, outside Canvas) ──
-function SymptomLabels({ symptoms }: { symptoms: Record<string, string> }) {
+function SymptomLabels({ symptoms, onRemove, onClearAll }: { symptoms: Record<string, string>; onRemove: (part: string) => void; onClearAll: () => void }) {
     const entries = Object.entries(symptoms);
     if (entries.length === 0) return null;
 
     const severityColors: Record<string, string> = {
-        mild: '#F59E0B',
+        mild: '#D97706',
         moderate: '#F97316',
-        severe: '#EF4444',
+        severe: '#DC2626',
     };
 
     return (
         <div style={{
             position: 'absolute', top: 16, right: 16,
             display: 'flex', flexDirection: 'column', gap: 6,
-            zIndex: 5, pointerEvents: 'none',
+            zIndex: 5, alignItems: 'flex-end',
         }}>
             {entries.map(([part, severity]) => {
                 const clr = severityColors[severity] || '#94A3B8';
@@ -265,13 +277,23 @@ function SymptomLabels({ symptoms }: { symptoms: Record<string, string> }) {
                             color: clr,
                             fontWeight: 600,
                             whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
                             backdropFilter: 'blur(12px)',
                         }}
                     >
                         {part}: {severity}
+                        <button onClick={() => onRemove(part)} aria-label={`Remove ${part}`} title={`Remove ${part}`}
+                            style={{ marginLeft: 6, border: 0, background: 'none', color: clr, cursor: 'pointer', padding: 0, lineHeight: 1, verticalAlign: -2 }}>
+                            <X size={13} />
+                        </button>
                     </motion.div>
                 );
             })}
+            <button onClick={onClearAll}
+                style={{ border: 0, background: 'var(--bg-card)', borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+                Clear all marks
+            </button>
         </div>
     );
 }
@@ -280,14 +302,23 @@ function SymptomLabels({ symptoms }: { symptoms: Record<string, string> }) {
 export default function DigitalTwinPage() {
     const [symptoms, setSymptoms] = useState<Record<string, string>>(() => {
         if (typeof window !== 'undefined') {
+            const saved = getSymptomLog();
+            if (Object.keys(saved).length) return saved;
             const user = getCurrentUser();
-            const saved = user ? localStorage.getItem(`hs_dt_symptoms_${user.id}`) : null;
-            if (saved) {
-                try { return JSON.parse(saved); } catch (e) {}
+            const legacy = user ? localStorage.getItem(`hs_dt_symptoms_${user.id}`) : null;
+            if (legacy) {
+                try { return JSON.parse(legacy); } catch (e) {}
             }
         }
-        return { Chest: 'moderate', 'Left Shoulder': 'mild' };
+        return {};
     });
+    useEffect(() => { setSymptomLog(symptoms); }, [symptoms]);
+    const router = useRouter();
+    // Anatomy matches the patient's sex; 'other' / 'prefer not to say' start on the gender-neutral classic body
+    const [bodyView, setBodyView] = useState<AnatomySex | 'classic'>(() => sexOf(getCurrentUser()?.gender) || 'classic');
+    const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+    const [finding, setFinding] = useState(false);
+    const [findError, setFindError] = useState('');
     const [selectedPart, setSelectedPart] = useState<string | null>(null);
     const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
     const [inputText, setInputText] = useState('');
@@ -584,21 +615,81 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
         }
     }, [chatMessages, voiceMode, loading, speakText]);
 
+    const findDoctor = async () => {
+        const user = getCurrentUser();
+        const journey = user ? getActiveJourney(user.id) : null;
+        const consultationType = journey?.pathway === 'AYUSH' ? 'AYUSH' : 'Allopathic';
+        const areas = Object.entries(symptoms).map(([part, sev]) => `${part} (${sev})`).join(', ');
+        const transcript = [
+            areas && `PATIENT marked on body map: ${areas}`,
+            ...chatMessages.map(m => `${m.role === 'user' ? 'PATIENT' : 'AI'}: ${m.content}`),
+        ].filter(Boolean).join('\n');
+        setFinding(true);
+        setFindError('');
+        try {
+            const res = await fetch('/api/ai/summarize-intake', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript, documents: [], consultationType }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            if (user) saveIntakeSummary({ id: generateId(), userId: user.id, patientName: user.name, date: new Date().toISOString(), consultationType, transcript, ...data });
+            if (journey) saveJourney({
+                ...journey, recommendedSpecialty: data.recommendedSpecialty, physicianSummary: `${data.chiefComplaint}. ${data.hpi || ''}`.trim(),
+                redFlagDetected: journey.redFlagDetected || data.redFlags?.length > 0, currentStep: JourneyStep.BOOKING, updatedAt: new Date().toISOString(),
+            });
+            setRecommendation(data);
+        } catch {
+            setFindError('Couldn\u2019t get a recommendation. Please try again.');
+        }
+        setFinding(false);
+    };
+
     const clearChat = useCallback(() => {
         setChatMessages([]);
         setDigitalTwinChat([]);
     }, []);
 
+    const removeSymptom = useCallback((part: string) => {
+        setSymptoms(prev => {
+            const next = { ...prev };
+            delete next[part];
+            return next;
+        });
+    }, []);
+
+    // Fresh twin for a new problem: marked areas, conversation and doctor suggestion all cleared
+    const startOver = useCallback(() => {
+        if (!confirm('Start over? This clears the marked body areas and the conversation.')) return;
+        stopSpeaking();
+        setSymptoms({});
+        setSelectedPart(null);
+        setRecommendation(null);
+        setInputText('');
+        setChatImage(null);
+        clearChat();
+    }, [stopSpeaking, clearChat]);
+
     return (
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800 }}>3D Digital Twin</h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Chat with AI about your health, or click body areas to log symptoms.
-                </p>
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                    <h1 style={{ fontSize: 28, fontWeight: 800 }}>3D Digital Twin</h1>
+                    <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                        Chat with AI about your health, or click body areas to log symptoms.
+                    </p>
+                </div>
+                {(Object.keys(symptoms).length > 0 || chatMessages.length > 0) && (
+                    <button onClick={startOver} className="btn-secondary" title="Clear marked areas and the conversation">
+                        <RotateCcw size={16} /> Start over
+                    </button>
+                )}
             </div>
 
+            <style>{`@media (max-width: 900px) { .twin-grid { grid-template-columns: 1fr !important; } }`}</style>
             <div
+                className="twin-grid"
                 style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
@@ -616,6 +707,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                         maxHeight: 500,
                     }}
                 >
+                    {bodyView === 'classic' ? (
                     <Canvas
                         camera={{ position: [0, 1, 4.5], fov: 45 }}
                         style={{ height: '100%' }}
@@ -657,10 +749,23 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                             dampingFactor={0.08}
                         />
                     </Canvas>
+                    ) : (
+                        <AnatomyTwin sex={bodyView} symptoms={symptoms} onPick={handlePartClick} height={500} />
+                    )}
+
+                    {/* Body model switch: female / male reference anatomy, or the classic body */}
+                    <div role="group" aria-label="Body model" style={{ position: 'absolute', top: 12, left: 12, zIndex: 6, display: 'flex', gap: 2, padding: 3, borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                        {(['female', 'male', 'classic'] as const).map(v => (
+                            <button key={v} type="button" aria-pressed={bodyView === v} onClick={() => setBodyView(v)}
+                                style={{ border: 0, borderRadius: 7, padding: '5px 10px', minHeight: 32, font: 'inherit', fontSize: 12.5, fontWeight: 600, textTransform: 'capitalize', cursor: 'pointer', background: bodyView === v ? 'var(--color-primary)' : 'transparent', color: bodyView === v ? '#fff' : 'var(--text-secondary)' }}>
+                                {v}
+                            </button>
+                        ))}
+                    </div>
 
                     {/* Symptom labels — rendered in DOM, outside Canvas */}
                     <AnimatePresence>
-                        <SymptomLabels symptoms={symptoms} />
+                        <SymptomLabels symptoms={symptoms} onRemove={removeSymptom} onClearAll={() => setSymptoms({})} />
                     </AnimatePresence>
 
                     {/* Legend */}
@@ -674,10 +779,10 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                         }}
                     >
                         {[
-                            { color: '#38BDF8', label: 'Healthy' },
-                            { color: '#F59E0B', label: 'Mild' },
+                            { color: '#0891B2', label: 'Healthy' },
+                            { color: '#D97706', label: 'Mild' },
                             { color: '#F97316', label: 'Moderate' },
-                            { color: '#EF4444', label: 'Severe' },
+                            { color: '#DC2626', label: 'Severe' },
                         ].map(item => (
                             <div
                                 key={item.label}
@@ -762,10 +867,10 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                     }}
                                 >
                                     {[
-                                        { value: 'mild', label: 'Mild', color: '#F59E0B' },
+                                        { value: 'mild', label: 'Mild', color: '#D97706' },
                                         { value: 'moderate', label: 'Moderate', color: '#F97316' },
-                                        { value: 'severe', label: 'Severe', color: '#EF4444' },
-                                        { value: 'none', label: 'No Pain', color: '#10B981' },
+                                        { value: 'severe', label: 'Severe', color: '#DC2626' },
+                                        { value: 'none', label: 'No Pain', color: '#059669' },
                                     ].map(opt => (
                                         <button
                                             key={opt.value}
@@ -833,7 +938,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                 style={{
                                     padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
                                     fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
-                                    background: voiceMode ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'var(--bg-card)',
+                                    background: voiceMode ? '#4F6B8A' : 'var(--bg-card)',
                                     color: voiceMode ? 'white' : 'var(--text-secondary)',
                                     transition: 'all 0.3s ease',
                                 }}
@@ -856,12 +961,15 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                             {chatMessages.length > 0 && (
                                 <button
                                     onClick={clearChat}
+                                    title="Start a new conversation (keeps marked body areas)"
                                     style={{
-                                        background: 'none', border: 'none',
-                                        color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        border: '1px solid var(--border-color)', background: 'var(--bg-card)',
+                                        color: 'var(--text-secondary)', cursor: 'pointer',
                                     }}
                                 >
-                                    Clear
+                                    <MessageSquarePlus size={14} /> New chat
                                 </button>
                             )}
                         </div>
@@ -1003,8 +1111,8 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                     gap: 8,
                                     padding: '6px 10px',
                                     borderRadius: 8,
-                                    background: 'rgba(14,165,233,0.05)',
-                                    border: '1px solid rgba(14,165,233,0.1)',
+                                    background: 'rgba(14, 116, 144,0.05)',
+                                    border: '1px solid rgba(14, 116, 144,0.1)',
                                 }}
                             >
                                 <ImagePlus
@@ -1058,7 +1166,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                     border: 'none',
                                     cursor: 'pointer',
                                     background: chatImage
-                                        ? 'rgba(14,165,233,0.1)'
+                                        ? 'rgba(14, 116, 144,0.1)'
                                         : 'var(--bg-card)',
                                     color: chatImage
                                         ? 'var(--color-primary)'
@@ -1080,7 +1188,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                     border: 'none',
                                     cursor: 'pointer',
                                     background: isListening
-                                        ? 'linear-gradient(135deg, #EF4444, #DC2626)'
+                                        ? '#DC2626'
                                         : 'var(--bg-card)',
                                     color: isListening ? 'white' : 'var(--text-muted)',
                                     display: 'flex',
@@ -1140,6 +1248,49 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                 </div>
             </div>
 
+            {/* Workflow: explanation → recommended specialist → book */}
+            <section className="card" style={{ padding: 22, marginTop: 20 }} aria-live="polite">
+                {!recommendation ? (
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 240 }}>
+                            <h2 style={{ fontSize: 18, fontWeight: 700 }}>Ready to see a doctor?</h2>
+                            <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>We’ll summarise the areas you marked and your questions, explain what may be causing it, and suggest the right specialist.</p>
+                            {findError && <p role="alert" style={{ color: 'var(--color-danger)', marginTop: 6 }}>{findError}</p>}
+                        </div>
+                        <button onClick={findDoctor} className="btn-primary" disabled={finding}>
+                            {finding ? 'Finding your doctor…' : 'Find the right doctor'}
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gap: 14 }}>
+                        <div>
+                            <span className="eyebrow">What may be going on</span>
+                            <h2 style={{ fontSize: 19, fontWeight: 700, marginTop: 4 }}>{recommendation.chiefComplaint}</h2>
+                            {recommendation.explanation && <p style={{ color: 'var(--text-secondary)', marginTop: 6 }}>{recommendation.explanation}</p>}
+                            <p className="field-hint">Not a diagnosis — your doctor will confirm.</p>
+                        </div>
+                        {recommendation.redFlags && recommendation.redFlags.length > 0 && (
+                            <div className="triage-red" role="alert" style={{ padding: 12, borderRadius: 10 }}>
+                                <strong>Warning signs:</strong> {recommendation.redFlags.join(', ')}. If it gets worse, call <a href="tel:108">108</a>.
+                            </div>
+                        )}
+                        <div>
+                            <span className="eyebrow">Recommended: {recommendation.recommendedSpecialty || 'General Physician'}</span>
+                            {recommendation.specialtyReason && <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>{recommendation.specialtyReason}</p>}
+                            <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                                {matchDoctors(recommendation.recommendedSpecialty, getActiveJourney(getCurrentUser()?.id || '')?.pathway).map(d => (
+                                    <div key={d.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 12, border: '1px solid var(--border-color)', borderRadius: 10, flexWrap: 'wrap' }}>
+                                        <span style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--color-primary)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>{d.initials}</span>
+                                        <span style={{ flex: 1, minWidth: 180 }}><strong>{d.name}</strong><span style={{ display: 'block', fontSize: 14, color: 'var(--text-secondary)' }}>{d.specialty} · {d.hospital} · {d.fee}</span></span>
+                                        <button onClick={() => router.push(`/journey/booking?doctor=${d.id}`)} className="btn-primary" style={{ minHeight: 40, padding: '8px 16px' }}>Book</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </section>
+
             {/* Voice Assistant Overlay */}
             <AnimatePresence>
                 {voiceMode && (
@@ -1194,7 +1345,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                         transition={{ repeat: Infinity, duration: 1.5, ease: 'easeOut' }}
                                         style={{
                                             position: 'absolute', inset: 0, borderRadius: '50%',
-                                            border: '2px solid #8B5CF6',
+                                            border: '2px solid #4F6B8A',
                                         }}
                                     />
                                     <motion.div
@@ -1202,7 +1353,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                         transition={{ repeat: Infinity, duration: 1.5, ease: 'easeOut', delay: 0.3 }}
                                         style={{
                                             position: 'absolute', inset: 0, borderRadius: '50%',
-                                            border: '2px solid #6D28D9',
+                                            border: '2px solid #3E5872',
                                         }}
                                     />
                                     <motion.div
@@ -1222,7 +1373,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                         transition={{ repeat: Infinity, duration: 0.8, ease: 'easeOut' }}
                                         style={{
                                             position: 'absolute', inset: 0, borderRadius: '50%',
-                                            border: '2px solid #0EA5E9',
+                                            border: '2px solid #0E7490',
                                         }}
                                     />
                                     <motion.div
@@ -1230,7 +1381,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                         transition={{ repeat: Infinity, duration: 0.8, ease: 'easeOut', delay: 0.2 }}
                                         style={{
                                             position: 'absolute', inset: 0, borderRadius: '50%',
-                                            border: '2px solid #38BDF8',
+                                            border: '2px solid #0891B2',
                                         }}
                                     />
                                 </>
@@ -1253,18 +1404,18 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                     width: '100%', height: '100%', borderRadius: '50%', border: 'none',
                                     cursor: voiceStatus === 'processing' ? 'wait' : 'pointer',
                                     background: voiceStatus === 'listening'
-                                        ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)'
+                                        ? '#4F6B8A'
                                         : voiceStatus === 'speaking'
-                                        ? 'linear-gradient(135deg, #0EA5E9, #0284C7)'
+                                        ? '#0E7490'
                                         : voiceStatus === 'processing'
-                                        ? 'linear-gradient(135deg, #F59E0B, #D97706)'
-                                        : 'linear-gradient(135deg, #6366F1, #4F46E5)',
+                                        ? '#D97706'
+                                        : '#3B6EA8',
                                     color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     boxShadow: voiceStatus === 'listening'
-                                        ? '0 0 60px rgba(139, 92, 246, 0.5)'
+                                        ? '0 0 60px rgba(79, 107, 138, 0.5)'
                                         : voiceStatus === 'speaking'
-                                        ? '0 0 60px rgba(14, 165, 233, 0.5)'
-                                        : '0 0 40px rgba(99, 102, 241, 0.3)',
+                                        ? '0 0 60px rgba(14, 116, 144, 0.5)'
+                                        : '0 0 40px rgba(59, 110, 168, 0.3)',
                                     transition: 'all 0.3s ease',
                                 }}
                             >
@@ -1310,7 +1461,7 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                 style={{
                                     maxWidth: 500, maxHeight: 200, overflowY: 'auto',
                                     padding: '16px 24px', borderRadius: 16,
-                                    background: 'rgba(14, 165, 233, 0.08)', border: '1px solid rgba(14, 165, 233, 0.15)',
+                                    background: 'rgba(14, 116, 144, 0.08)', border: '1px solid rgba(14, 116, 144, 0.15)',
                                     color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.7,
                                 }}
                             >
@@ -1337,8 +1488,8 @@ If the user describes severe symptoms (chest pain, difficulty breathing, etc.), 
                                 <button
                                     onClick={stopSpeaking}
                                     style={{
-                                        padding: '10px 20px', borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)',
-                                        background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 13,
+                                        padding: '10px 20px', borderRadius: 12, border: '1px solid rgba(220, 38, 38,0.3)',
+                                        background: 'rgba(220, 38, 38,0.1)', color: '#DC2626', fontSize: 13,
                                         fontWeight: 600, cursor: 'pointer',
                                     }}
                                 >

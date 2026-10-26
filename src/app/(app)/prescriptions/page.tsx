@@ -21,17 +21,17 @@ export default function UserPrescriptionsPage() {
 <title>Prescription - ${rx.diagnosis}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a2e;background:#fff}
-.header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0EA5E9;padding-bottom:20px;margin-bottom:24px}
-.logo{font-size:24px;font-weight:800;color:#0EA5E9}
+.header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0E7490;padding-bottom:20px;margin-bottom:24px}
+.logo{font-size:24px;font-weight:800;color:#0E7490}
 .date{font-size:13px;color:#666}
 .section{margin-bottom:20px}
-.section-title{font-size:14px;font-weight:700;color:#0EA5E9;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:6px}
+.section-title{font-size:14px;font-weight:700;color:#0E7490;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:6px}
 .diagnosis{font-size:20px;font-weight:700;margin-bottom:4px}
 .doctor{font-size:14px;color:#555}
 table{width:100%;border-collapse:collapse;margin-bottom:16px}
 th{background:#f0f7ff;padding:10px 12px;text-align:left;font-size:13px;font-weight:600;border:1px solid #ddd}
 td{padding:10px 12px;font-size:13px;border:1px solid #ddd}
-.advice{background:#f0f7ff;padding:14px;border-radius:8px;border-left:4px solid #0EA5E9;font-size:14px}
+.advice{background:#f0f7ff;padding:14px;border-radius:8px;border-left:4px solid #0E7490;font-size:14px}
 .footer{margin-top:30px;padding-top:16px;border-top:2px solid #eee;font-size:11px;color:#888;text-align:center}
 .status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:${rx.status === 'active' ? '#e0f2fe' : '#d1fae5'};color:${rx.status === 'active' ? '#0369a1' : '#065f46'}}
 @media print{body{padding:20px}@page{margin:1cm}}
@@ -84,8 +84,8 @@ ${rx.followUpDate ? `<div class="section"><div class="section-title">Follow-up</
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                     <span style={{
                                         padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        background: rx.status === 'active' ? 'rgba(14,165,233,0.1)' : 'rgba(16,185,129,0.1)',
-                                        color: rx.status === 'active' ? '#0EA5E9' : '#10B981',
+                                        background: rx.status === 'active' ? 'rgba(14, 116, 144,0.1)' : 'rgba(5, 150, 105,0.1)',
+                                        color: rx.status === 'active' ? '#0E7490' : '#059669',
                                         display: 'flex', alignItems: 'center', gap: 4,
                                     }}>
                                         {rx.status === 'active' ? <Clock size={12} /> : <CheckCircle size={12} />} {rx.status}
@@ -107,7 +107,7 @@ ${rx.followUpDate ? `<div class="section"><div class="section-title">Follow-up</
                                             border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <Pill size={16} style={{ color: '#8B5CF6' }} />
+                                                <Pill size={16} style={{ color: '#4F6B8A' }} />
                                                 <div>
                                                     <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
                                                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.dosage} • {m.frequency} • {m.duration}</div>
@@ -121,7 +121,7 @@ ${rx.followUpDate ? `<div class="section"><div class="section-title">Follow-up</
 
                             {/* Advice */}
                             {rx.advice && (
-                                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(14,165,233,0.05)', border: '1px solid rgba(14,165,233,0.1)', marginBottom: 10 }}>
+                                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(14, 116, 144,0.05)', border: '1px solid rgba(14, 116, 144,0.1)', marginBottom: 10 }}>
                                     <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-primary)' }}>{t('rx.advice')}:</span>
                                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{rx.advice}</p>
                                 </div>

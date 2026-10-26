@@ -6,10 +6,12 @@ import {
     Phone, Video, PhoneOff, PhoneIncoming, Mic, MicOff, Camera, CameraOff, Clock,
     Monitor, MonitorOff, PhoneCall, PhoneMissed
 } from 'lucide-react';
-import { getCurrentUser, generateId, type CallLog } from '@/lib/store';
+import Link from 'next/link';
+import { getCurrentUser, generateId, getActiveJourney, getConsent, type CallLog, type PatientJourney } from '@/lib/store';
 import { cloudGetCallLogs, cloudGetActiveCall, cloudUpdateCallLog, cloudAddNotification } from '@/lib/shared-store';
 import { useLanguage } from '@/lib/LanguageProvider';
 import { useWebRTC } from '@/hooks/useWebRTC';
+import { useLiveTranscript } from '@/hooks/useLiveTranscript';
 
 export default function UserCallsPage() {
     const { t } = useLanguage();
@@ -21,6 +23,8 @@ export default function UserCallsPage() {
     const [isCamOff, setIsCamOff] = useState(false);
     const [isScreenShare, setIsScreenShare] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
+    const [journey, setJourney] = useState<PatientJourney | null>(null);
+    const [justEnded, setJustEnded] = useState(false);
     const activeCallRef = useRef<CallLog | null>(null);
     const callDurationRef = useRef(0);
     const userIdRef = useRef('');
@@ -33,6 +37,7 @@ export default function UserCallsPage() {
         const user = getCurrentUser();
         if (!user) return;
         setUserId(user.id);
+        setJourney(getActiveJourney(user.id));
         cloudGetCallLogs(user.id, 'user').then(setCallHistory);
     }, []);
 
@@ -44,6 +49,7 @@ export default function UserCallsPage() {
                 setActiveCall(call);
             } else if (activeCallRef.current && call === null) {
                 setActiveCall(null);
+                setJustEnded(true);
                 setCallDuration(0);
                 const history = await cloudGetCallLogs(userId, 'user');
                 setCallHistory(history);
@@ -104,11 +110,17 @@ export default function UserCallsPage() {
             timestamp: new Date().toISOString(), read: false,
         });
         setActiveCall(null);
+        setJustEnded(true);
         setCallDuration(0);
         setIsScreenShare(false);
         const history = await cloudGetCallLogs(userIdRef.current, 'user');
         setCallHistory(history);
     };
+
+    // Journey consultation with this doctor: transcribe the patient's side once both have consented
+    const journeyCall = !!journey && !!activeCall && journey.doctorId === activeCall.doctorId;
+    const consent = journey ? getConsent(journey.id) : { patient: false, doctor: false };
+    const transcript = useLiveTranscript(journey?.id ?? null, 'patient', journeyCall && activeCall?.status === 'ongoing' && consent.patient && consent.doctor);
 
     const formatDuration = (secs: number) => {
         const m = Math.floor(secs / 60); const s = secs % 60;
@@ -125,13 +137,20 @@ export default function UserCallsPage() {
             <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 6 }}>{t('calls.title')}</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 24 }}>{t('calls.subtitle')}</p>
 
+            {justEnded && journey?.doctorId && (
+                <div className="card" role="status" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--color-primary)' }}>
+                    <span style={{ flex: 1, minWidth: 220 }}><strong>Consultation finished.</strong> Your doctor is preparing your care plan.</span>
+                    <Link href="/journey/care-plan" className="btn-primary">See care plan status</Link>
+                </div>
+            )}
+
             {totalCalls > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
                     {[
-                        { label: 'Total Calls', value: totalCalls, icon: PhoneCall, color: '#0EA5E9' },
-                        { label: 'Completed', value: completedCalls, icon: Phone, color: '#10B981' },
-                        { label: 'Missed', value: missedCalls, icon: PhoneMissed, color: '#EF4444' },
-                        { label: 'Talk Time', value: formatDuration(totalDuration), icon: Clock, color: '#8B5CF6' },
+                        { label: 'Total Calls', value: totalCalls, icon: PhoneCall, color: '#0E7490' },
+                        { label: 'Completed', value: completedCalls, icon: Phone, color: '#059669' },
+                        { label: 'Missed', value: missedCalls, icon: PhoneMissed, color: '#DC2626' },
+                        { label: 'Talk Time', value: formatDuration(totalDuration), icon: Clock, color: '#4F6B8A' },
                     ].map((stat, i) => (
                         <div key={i} className="glass-card-static" style={{ padding: 16, textAlign: 'center' }}>
                             <stat.icon size={20} style={{ color: stat.color, marginBottom: 8 }} />
@@ -152,17 +171,17 @@ export default function UserCallsPage() {
                         }}>
                         <div style={{
                             width: '100%', maxWidth: 420, padding: '20px 24px', borderRadius: 20,
-                            background: 'linear-gradient(135deg, #0B1120f5, #1a0b2ef5)',
-                            backdropFilter: 'blur(24px)', border: '1px solid rgba(14,165,233,0.4)',
-                            boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14,165,233,0.15)',
+                            background: '#0B1120f5',
+                            backdropFilter: 'blur(24px)', border: '1px solid rgba(14, 116, 144,0.4)',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(14, 116, 144,0.15)',
                             display: 'flex', alignItems: 'center', gap: 16,
                         }}>
                             <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
                                 style={{
                                     width: 52, height: 52, borderRadius: 16, flexShrink: 0,
                                     background: activeCall.type === 'video'
-                                        ? 'linear-gradient(135deg, #8B5CF6, #6366F1)'
-                                        : 'linear-gradient(135deg, #10B981, #0EA5E9)',
+                                        ? '#4F6B8A'
+                                        : '#059669',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
                                 <PhoneIncoming size={24} style={{ color: 'white' }} />
@@ -178,13 +197,13 @@ export default function UserCallsPage() {
                             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
                                 <button onClick={rejectCall} style={{
                                     width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                    background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                                    background: '#DC2626', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(220, 38, 38,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                                 }}><PhoneOff size={20} /></button>
                                 <button onClick={acceptCall} style={{
                                     width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                    background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 4px 12px rgba(16,185,129,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                                    background: '#059669', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(5, 150, 105,0.4)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                                 }}><Phone size={20} /></button>
                             </div>
                         </div>
@@ -197,7 +216,7 @@ export default function UserCallsPage() {
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                         style={{
                             position: 'fixed', inset: 0, zIndex: 9999,
-                            background: activeCall.type === 'video' ? 'linear-gradient(135deg, #0B1120, #1a0b2e)' : 'linear-gradient(135deg, #0B1120, #0c2035)',
+                            background: activeCall.type === 'video' ? '#0B1120' : '#0B1120',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24,
                         }}>
                         {/* Remote Video (full screen background) */}
@@ -228,8 +247,8 @@ export default function UserCallsPage() {
                         {isScreenShare && (
                             <div style={{
                                 position: 'absolute', top: 20, left: 20, padding: '8px 16px', borderRadius: 10,
-                                background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.3)',
-                                color: '#10B981', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+                                background: 'rgba(5, 150, 105,0.2)', border: '1px solid rgba(5, 150, 105,0.3)',
+                                color: '#059669', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
                             }}><Monitor size={14} /> Screen Sharing Active</div>
                         )}
                         <div style={{
@@ -239,24 +258,29 @@ export default function UserCallsPage() {
                             {activeCall.doctorName.split(' ').pop()?.charAt(0) || 'D'}
                         </div>
                         <h2 style={{ fontSize: 24, fontWeight: 700, color: 'white' }}>{activeCall.doctorName}</h2>
+                        {transcript.listening && (
+                            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: 'rgba(220, 38, 38, 0.2)', color: '#FCA5A5', fontSize: 13, fontWeight: 600 }}>
+                                <Mic size={14} /> Recording with consent for your care plan
+                            </div>
+                        )}
                         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{formatDuration(callDuration)}</p>
                         {/* Permission error */}
                         {webrtc.permissionError && (
-                            <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: 12, maxWidth: 300, textAlign: 'center' }}>
+                            <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(220, 38, 38,0.2)', border: '1px solid rgba(220, 38, 38,0.3)', color: '#FCA5A5', fontSize: 12, maxWidth: 300, textAlign: 'center' }}>
                                 {webrtc.permissionError}
                             </div>
                         )}
                         {/* Connection status */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: webrtc.isConnected ? '#10B981' : '#F59E0B' }} />
-                            <span style={{ color: webrtc.isConnected ? '#10B981' : '#F59E0B', fontSize: 11, fontWeight: 600 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: webrtc.isConnected ? '#059669' : '#D97706' }} />
+                            <span style={{ color: webrtc.isConnected ? '#059669' : '#D97706', fontSize: 11, fontWeight: 600 }}>
                                 {webrtc.isConnected ? 'Voice Connected' : 'Connecting...'}
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: 16, marginTop: 20, position: 'relative', zIndex: 10000 }}>
                             <button onClick={() => { const newVal = !isMuted; setIsMuted(newVal); webrtc.toggleMute(newVal); }} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
+                                background: isMuted ? 'rgba(220, 38, 38,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
@@ -265,14 +289,14 @@ export default function UserCallsPage() {
                                 <>
                                     <button onClick={() => { const newVal = !isCamOff; setIsCamOff(newVal); webrtc.toggleCamera(newVal); }} style={{
                                         width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                        background: isCamOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
+                                        background: isCamOff ? 'rgba(220, 38, 38,0.2)' : 'rgba(255,255,255,0.1)', color: 'white',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
                                         {isCamOff ? <CameraOff size={22} /> : <Camera size={22} />}
                                     </button>
                                     <button onClick={() => setIsScreenShare(!isScreenShare)} style={{
                                         width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                        background: isScreenShare ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)', color: 'white',
+                                        background: isScreenShare ? 'rgba(5, 150, 105,0.3)' : 'rgba(255,255,255,0.1)', color: 'white',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
                                         {isScreenShare ? <MonitorOff size={22} /> : <Monitor size={22} />}
@@ -281,7 +305,7 @@ export default function UserCallsPage() {
                             )}
                             <button onClick={endCall} style={{
                                 width: 56, height: 56, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                                background: '#EF4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: '#DC2626', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 <PhoneOff size={22} />
                             </button>
@@ -305,10 +329,10 @@ export default function UserCallsPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     <div style={{
                                         width: 40, height: 40, borderRadius: 10,
-                                        background: c.type === 'video' ? 'rgba(139,92,246,0.1)' : 'rgba(14,165,233,0.1)',
+                                        background: c.type === 'video' ? 'rgba(79, 107, 138,0.1)' : 'rgba(14, 116, 144,0.1)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        {c.type === 'video' ? <Video size={18} style={{ color: '#8B5CF6' }} /> : <Phone size={18} style={{ color: '#0EA5E9' }} />}
+                                        {c.type === 'video' ? <Video size={18} style={{ color: '#4F6B8A' }} /> : <Phone size={18} style={{ color: '#0E7490' }} />}
                                     </div>
                                     <div>
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{c.doctorName}</div>
@@ -319,8 +343,8 @@ export default function UserCallsPage() {
                                 </div>
                                 <span style={{
                                     padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                    background: c.status === 'completed' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                                    color: c.status === 'completed' ? '#10B981' : '#EF4444',
+                                    background: c.status === 'completed' ? 'rgba(5, 150, 105,0.1)' : 'rgba(220, 38, 38,0.1)',
+                                    color: c.status === 'completed' ? '#059669' : '#DC2626',
                                 }}>{c.status}</span>
                             </div>
                         </motion.div>

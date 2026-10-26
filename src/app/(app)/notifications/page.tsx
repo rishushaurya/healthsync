@@ -13,7 +13,7 @@ const typeIcons: Record<string, typeof Bell> = {
     order: Package, prescription: FileText, appointment: Calendar, call: Phone, system: Bell,
 };
 const typeColors: Record<string, string> = {
-    order: '#8B5CF6', prescription: '#0EA5E9', appointment: '#10B981', call: '#F59E0B', system: '#6B7280',
+    order: '#4F6B8A', prescription: '#0E7490', appointment: '#059669', call: '#D97706', system: '#6B7280',
 };
 
 export default function NotificationsPage() {
@@ -60,7 +60,7 @@ export default function NotificationsPage() {
                 {['all', 'order', 'prescription', 'appointment', 'call', 'system'].map(f => (
                     <button key={f} onClick={() => setFilter(f)} style={{
                         padding: '6px 14px', borderRadius: 20, border: `1px solid ${filter === f ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                        background: filter === f ? 'rgba(14,165,233,0.08)' : 'var(--bg-card)',
+                        background: filter === f ? 'rgba(14, 116, 144,0.08)' : 'var(--bg-card)',
                         color: filter === f ? 'var(--color-primary)' : 'var(--text-secondary)',
                         cursor: 'pointer', fontSize: 12, fontWeight: 600, textTransform: 'capitalize',
                     }}>{f}</button>
