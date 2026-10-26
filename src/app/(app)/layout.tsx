@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser } from '@/lib/store';
 import { LanguageProvider } from '@/lib/LanguageProvider';
+import IncomingCallOverlay from '@/components/calls/IncomingCallOverlay';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -67,6 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 >
                     {children}
                 </main>
+                <IncomingCallOverlay />
             </div>
         </LanguageProvider>
     );

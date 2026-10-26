@@ -350,10 +350,42 @@ const getStorage = (key: string) => {
     return data ? JSON.parse(data) : null;
 };
 
+// ---------- Cross-device sync ----------
+// App keys are mirrored to /api/store (Redis, or server memory locally) so the doctor's and
+// patient's devices see the same records. Session and preference keys stay on this device.
+const DEVICE_ONLY = new Set(['healthsync_current_user', 'hs_current_doctor', 'healthsync_doctor_theme']);
+const isSynced = (key: string) => (key.startsWith('hs_') || key.startsWith('healthsync_')) && !DEVICE_ONLY.has(key);
+const recentWrites = new Map<string, number>();
+
+const pushToCloud = (key: string, value: unknown) =>
+    fetch('/api/store', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value }) }).catch(() => { });
+
 const setStorage = (key: string, value: unknown) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(key, JSON.stringify(value));
+    if (!isSynced(key)) return;
+    recentWrites.set(key, Date.now());
+    pushToCloud(key, value);
 };
+
+// seniordev: last-write-wins per key — two devices editing the same list inside one poll can drop an entry;
+// move hot lists to server-side push (shared-store cloudPush) if that shows up.
+export async function syncFromCloud(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+        const res = await fetch('/api/store?all=1', { cache: 'no-store' });
+        const cloud: Record<string, unknown> = (await res.json()).data || {};
+        for (const [key, value] of Object.entries(cloud)) {
+            // Skip keys this device just wrote so a slower in-flight pull can't revert them
+            if (value === null || !isSynced(key) || Date.now() - (recentWrites.get(key) || 0) < 5000) continue;
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+        // Seed the server with anything only this device has (first sync, or server memory restarted)
+        for (const key of Object.keys(localStorage)) {
+            if (isSynced(key) && !(key in cloud)) pushToCloud(key, JSON.parse(localStorage.getItem(key)!));
+        }
+    } catch { /* offline: keep working from local data */ }
+}
 
 // ---------- User registry ----------
 export const getAllUsers = (): UserProfile[] => getStorage('healthsync_users') || [];
@@ -502,9 +534,10 @@ export function getDoctorAccounts(): DoctorAccount[] {
 
 export function loginDoctor(email: string, password: string): { success: boolean; doctor?: DoctorAccount; error?: string } {
     const docs = getDoctorAccounts();
-    const doc = docs.find(d => d.email.toLowerCase() === email.toLowerCase());
+    // Trim: mobile keyboards often append a trailing space
+    const doc = docs.find(d => d.email.toLowerCase() === email.trim().toLowerCase());
     if (!doc) return { success: false, error: 'No doctor account with this email' };
-    if (doc.password !== simpleHash(password)) return { success: false, error: 'Incorrect password' };
+    if (doc.password !== simpleHash(password.trim())) return { success: false, error: 'Incorrect password' };
     return { success: true, doctor: doc };
 }
 
